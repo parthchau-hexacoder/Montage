@@ -15,10 +15,13 @@ export type ModuleMetrics = {
   sqft: number;
 };
 
+export type NodeType = "WALL" | "DOOR" | "ROOF";
+
 export type NodeDefinition = {
   id: string;
   position: Vec3;
-  type: string;
-  compatibleWith: string[];
+  rotation: Vec3;
+  type: NodeType;
+  compatibleWith: NodeType[];
 };
     

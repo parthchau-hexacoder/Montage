@@ -1,12 +1,13 @@
 import { Canvas } from "@react-three/fiber";
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../app/providers/DesignProvider";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { OrbitControls } from "@react-three/drei";
 import { ModuleMesh } from "./ModuleMesh.tsx";
 
 export const EngineCanvas = observer(() => {
   const { composition } = useDesign();
+  const [isDraggingModule, setIsDraggingModule] = useState(false);
 
   return (
     <Canvas camera={{ position: [5, 5, 7], fov: 50 }}>
@@ -15,11 +16,15 @@ export const EngineCanvas = observer(() => {
 
       <Suspense fallback={null}>
         {Array.from(composition.modules.values()).map((module) => (
-          <ModuleMesh key={module.instanceId} module={module} />
+          <ModuleMesh
+            key={module.instanceId}
+            module={module}
+            onDragStateChange={setIsDraggingModule}
+          />
         ))}
       </Suspense>
 
-      <OrbitControls />
+      <OrbitControls enabled={!isDraggingModule} />
     </Canvas>
   );
 });

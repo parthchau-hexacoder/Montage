@@ -1,12 +1,14 @@
 import { makeAutoObservable } from "mobx";
 import { ModuleDefinition } from "./ModuleDefinition";
 import type { Transform } from "./types";
+import { NodeInstance } from "./NodeInstance";
 
 let idCounter = 0;
 
 export class ModuleInstance {
     readonly instanceId: string;
     readonly definition: ModuleDefinition;
+    nodes: NodeInstance[] = [];
 
     transform: Transform;
 
@@ -18,6 +20,10 @@ export class ModuleInstance {
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
         };
+
+        this.nodes = definition.nodes.map(
+            (nodeDef) => new NodeInstance(nodeDef, this)
+        );
 
         makeAutoObservable(this);
     }

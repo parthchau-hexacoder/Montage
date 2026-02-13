@@ -1,8 +1,10 @@
 import { makeAutoObservable } from "mobx";
 import type { ModuleInstance } from "./ModuleInstance";
+import { ConnectionGraph } from "./ConnectionGraph";
 
 export class BuildingComposition{
     modules: Map<string, ModuleInstance> = new Map();
+    graph = new ConnectionGraph();
 
     constructor() {
         makeAutoObservable(this);
