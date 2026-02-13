@@ -4,6 +4,7 @@ import { useDesign } from "../../app/providers/DesignProvider";
 import { Suspense, useState } from "react";
 import { OrbitControls } from "@react-three/drei";
 import { ModuleMesh } from "./ModuleMesh.tsx";
+import { PlanGrid } from "./plan2d/PlanGrid";
 
 type Props = {
   viewMode: "2d" | "3d";
@@ -36,8 +37,9 @@ export const EngineCanvas = observer(({ viewMode }: Props) => {
         }
       }}
     >
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 10, 5]} castShadow />
+      <PlanGrid enabled={is2D} />
+      <ambientLight intensity={is2D ? 1 : 0.8} />
+      {!is2D && <directionalLight position={[5, 10, 5]} castShadow />}
 
       <Suspense fallback={null}>
         {Array.from(composition.modules.values()).map((module) => (
@@ -56,7 +58,7 @@ export const EngineCanvas = observer(({ viewMode }: Props) => {
         enablePan
         screenSpacePanning={is2D}
         minPolarAngle={!is2D ? 0 : undefined}
-        maxPolarAngle={!is2D ? Math.PI : undefined}
+        maxPolarAngle={!is2D ? Math.PI / 2  : undefined}
       />
     </Canvas>
   );

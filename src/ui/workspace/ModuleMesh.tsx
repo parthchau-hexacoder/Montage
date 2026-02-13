@@ -2,9 +2,10 @@ import { observer } from "mobx-react-lite";
 import { useGLTF } from "@react-three/drei";
 import { useDrag } from "@use-gesture/react";
 import { useThree } from "@react-three/fiber";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import { useDesign } from "../../app/providers/DesignProvider";
+import { applyPlan2DStyle } from "./plan2d/planStyle";
 
 type Props = {
   module: ModuleInstance;
@@ -14,12 +15,26 @@ type Props = {
 
 export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: Props) => {
   const { scene } = useGLTF(module.definition.glbPath);
-  const { trySnap, moveModuleGroup, selectModule, composition } = useDesign();
+  const { trySnap, moveModuleGroup, selectModule } = useDesign();
   const { size, viewport } = useThree();
+  const moduleScene = useMemo(() => scene.clone(true), [scene, module.instanceId]);
+  const freeNodeIds = module.nodes
+    .filter((node) => !node.occupied)
+    .map((node) => node.definition.id);
+  const freeNodeKey = freeNodeIds.slice().sort().join("|");
 
   useEffect(() => {
-    module.registerNodesFromScene(scene);
-  }, [module, scene]);
+    module.registerNodesFromScene(moduleScene);
+  }, [module, moduleScene]);
+
+  useEffect(() => {
+    if (!interactive) return;
+
+    applyPlan2DStyle(moduleScene, {
+      enabled: interactive,
+      freeNodeIds: new Set(freeNodeIds),
+    });
+  }, [moduleScene, interactive, freeNodeKey]);
 
   const bind = useDrag(({ movement: [mx, my], first, last, memo }) => {
     if (!interactive) return memo;
@@ -69,34 +84,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
         module.transform.rotation.z,
       ]}
     >
-      <primitive object={scene} />
-
-      {interactive && composition.selectedModuleId === module.instanceId && (
-        <mesh>
-          <boxGeometry args={[0.4, 0.08, 0.4]} />
-          <meshStandardMaterial color="#60a5fa" emissive="#60a5fa" emissiveIntensity={0.55} />
-        </mesh>
-      )}
-
-      {interactive && module.nodes
-        .filter((node) => !node.occupied)
-        .map((node) => (
-          <mesh
-            key={`${module.instanceId}_${node.definition.id}`}
-            position={[
-              node.definition.position.x,
-              node.definition.position.y,
-              node.definition.position.z,
-            ]}
-          >
-            <sphereGeometry args={[0.12, 12, 12]} />
-            <meshStandardMaterial
-              color="skyblue"
-              emissive="skyblue"
-              emissiveIntensity={0.35}
-            />
-          </mesh>
-        ))}
+      <primitive object={moduleScene} />
     </group>
   );
 });
