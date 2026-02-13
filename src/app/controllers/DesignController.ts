@@ -1,21 +1,48 @@
+import { makeAutoObservable } from "mobx";
 import { BuildingComposition } from "../../core/composition/BuildingComposition";
 import { ModuleManager } from "../../core/managers/ModuleManager";
 import { ModuleDefinition } from "../../core/composition/ModuleDefinition";
 import { NodeManager } from "../../core/managers/NodeManager";
 import { SnapManager } from "../../core/managers/SnapManager";
-import type { ModuleInstance } from "../../core/composition/ModuleInstance";
+import { ModuleInstance } from "../../core/composition/ModuleInstance";
+import { NodeInstance } from "../../core/composition/NodeInstance";
+import type { ConnectionRecord } from "../../core/composition/ConnectionGraph";
+import type { NodeDefinition, Transform } from "../../core/composition/types";
+
+type ModuleSnapshot = {
+    instanceId: string;
+    definitionId: string;
+    transform: Transform;
+    nodes: Array<{
+        definition: NodeDefinition;
+        occupied: boolean;
+    }>;
+};
+
+type CompositionSnapshot = {
+    modules: ModuleSnapshot[];
+    connections: ConnectionRecord[];
+    selectedModuleId: string | null;
+};
+
+const HISTORY_LIMIT = 100;
 
 export class DesignController {
     composition: BuildingComposition;
     moduleManager: ModuleManager;
     nodeManager: NodeManager;
     snapManager: SnapManager;
+    private undoStack: CompositionSnapshot[] = [];
+    private redoStack: CompositionSnapshot[] = [];
+    private interactionStartSnapshot: CompositionSnapshot | null = null;
 
     constructor() {
         this.composition = new BuildingComposition();
         this.moduleManager = new ModuleManager(this.composition);
         this.nodeManager = new NodeManager(this.composition);
         this.snapManager = new SnapManager(this.nodeManager);
+
+        makeAutoObservable(this, {}, { autoBind: true });
     }
 
     initializeDefaults() {
@@ -51,13 +78,27 @@ export class DesignController {
         this.moduleManager.registerDefinition(lifestyle);
     }
 
+    get canUndo() {
+        return this.undoStack.length > 0;
+    }
+
+    get canRedo() {
+        return this.redoStack.length > 0;
+    }
+
     addModule = (typeId: string) => {
-        return this.moduleManager.createModule(typeId);
+        const before = this.captureSnapshot();
+        const module = this.moduleManager.createModule(typeId);
+        this.trackStateChange(before);
+
+        return module;
     };
 
     removeModule = (id: string) => {
+        const before = this.captureSnapshot();
         this.nodeManager.disjointModule(id);
         this.moduleManager.removeModule(id);
+        this.trackStateChange(before);
     };
 
     selectModule = (moduleId: string | null) => {
@@ -95,7 +136,9 @@ export class DesignController {
 
         if (!selectedModuleId) return;
 
+        const before = this.captureSnapshot();
         this.nodeManager.disjointModule(selectedModuleId);
+        this.trackStateChange(before);
     };
 
     trySnap = (module: ModuleInstance) => {
@@ -112,11 +155,137 @@ export class DesignController {
         module.setPosition(newPos.x, newPos.y, newPos.z);
 
         this.nodeManager.markOccupied(result.source, result.target);
-
-        if (typeof window !== "undefined") {
-            window.alert(
-                `Snapped ${result.source.module.instanceId}:${result.source.definition.id} -> ${result.target.module.instanceId}:${result.target.definition.id}`
-            );
-        }
     };
+
+    beginInteraction = () => {
+        if (this.interactionStartSnapshot) return;
+
+        this.interactionStartSnapshot = this.captureSnapshot();
+    };
+
+    endInteraction = () => {
+        if (!this.interactionStartSnapshot) return;
+
+        this.trackStateChange(this.interactionStartSnapshot);
+        this.interactionStartSnapshot = null;
+    };
+
+    undo = () => {
+        const previous = this.undoStack.pop();
+        if (!previous) return;
+
+        const current = this.captureSnapshot();
+        this.redoStack.push(current);
+
+        this.restoreSnapshot(previous);
+    };
+
+    redo = () => {
+        const next = this.redoStack.pop();
+        if (!next) return;
+
+        const current = this.captureSnapshot();
+        this.undoStack.push(current);
+
+        this.restoreSnapshot(next);
+    };
+
+    private trackStateChange(before = this.captureSnapshot()) {
+        const current = this.captureSnapshot();
+
+        if (this.isSameSnapshot(before, current)) {
+            return;
+        }
+
+        this.undoStack.push(before);
+        if (this.undoStack.length > HISTORY_LIMIT) {
+            this.undoStack.shift();
+        }
+        this.redoStack = [];
+    }
+
+    private captureSnapshot(): CompositionSnapshot {
+        const modules = Array.from(this.composition.modules.values())
+            .map((module) => ({
+                instanceId: module.instanceId,
+                definitionId: module.definition.id,
+                transform: {
+                    position: { ...module.transform.position },
+                    rotation: { ...module.transform.rotation },
+                },
+                nodes: module.nodes.map((node) => ({
+                    definition: {
+                        id: node.definition.id,
+                        type: node.definition.type,
+                        position: { ...node.definition.position },
+                        rotation: { ...node.definition.rotation },
+                        compatibleWith: [...node.definition.compatibleWith],
+                    },
+                    occupied: node.occupied,
+                })),
+            }))
+            .sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+
+        return {
+            modules,
+            connections: this.composition.graph.connections.map((connection) => ({
+                ...connection,
+            })),
+            selectedModuleId: this.composition.selectedModuleId,
+        };
+    }
+
+    private restoreSnapshot(snapshot: CompositionSnapshot) {
+        const definitions = new Map(
+            this.moduleManager.getDefinitions().map((definition) => [definition.id, definition])
+        );
+
+        this.composition.modules.clear();
+
+        snapshot.modules.forEach((moduleSnapshot) => {
+            const definition = definitions.get(moduleSnapshot.definitionId);
+            if (!definition) return;
+
+            const module = new ModuleInstance(definition);
+            (module as unknown as { instanceId: string }).instanceId = moduleSnapshot.instanceId;
+
+            module.setPosition(
+                moduleSnapshot.transform.position.x,
+                moduleSnapshot.transform.position.y,
+                moduleSnapshot.transform.position.z
+            );
+            module.setRotation(
+                moduleSnapshot.transform.rotation.x,
+                moduleSnapshot.transform.rotation.y,
+                moduleSnapshot.transform.rotation.z
+            );
+
+            module.nodes = moduleSnapshot.nodes.map((nodeSnapshot) => {
+                const node = new NodeInstance(
+                    {
+                        ...nodeSnapshot.definition,
+                        position: { ...nodeSnapshot.definition.position },
+                        rotation: { ...nodeSnapshot.definition.rotation },
+                        compatibleWith: [...nodeSnapshot.definition.compatibleWith],
+                    },
+                    module
+                );
+
+                node.occupied = nodeSnapshot.occupied;
+
+                return node;
+            });
+
+            this.composition.modules.set(module.instanceId, module);
+        });
+
+        this.composition.graph.connections = snapshot.connections.map((connection) => ({
+            ...connection,
+        }));
+        this.composition.setSelectedModule(snapshot.selectedModuleId);
+    }
+
+    private isSameSnapshot(a: CompositionSnapshot, b: CompositionSnapshot) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
 }

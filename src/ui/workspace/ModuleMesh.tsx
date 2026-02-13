@@ -15,7 +15,7 @@ type Props = {
 
 export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: Props) => {
   const { scene } = useGLTF(module.definition.glbPath);
-  const { trySnap, moveModuleGroup, selectModule } = useDesign();
+  const { trySnap, moveModuleGroup, selectModule, beginInteraction, endInteraction } = useDesign();
   const { size, viewport } = useThree();
   const moduleScene = useMemo(() => scene.clone(true), [scene, module.instanceId]);
   const freeNodeIds = module.nodes
@@ -39,8 +39,13 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
   const bind = useDrag(({ movement: [mx, my], first, last, memo }) => {
     if (!interactive) return memo;
 
-    if (first) onDragStateChange?.(true);
-    if (last) onDragStateChange?.(false);
+    if (first) {
+      onDragStateChange?.(true);
+      beginInteraction();
+    }
+    if (last) {
+      onDragStateChange?.(false);
+    }
 
     const start =
       memo ?? {
@@ -58,6 +63,10 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
 
     moveModuleGroup(module, worldX, worldY, worldZ);
     trySnap(module);
+
+    if (last) {
+      endInteraction();
+    }
 
     return start;
   }, { enabled: interactive });
