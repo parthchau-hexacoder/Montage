@@ -3,7 +3,7 @@ import type { Vec3 } from "../composition/types";
 import { NodeManager } from "./NodeManager";
 import { ModuleInstance } from "../composition/ModuleInstance";
 
-const SNAP_THRESHOLD = 1;
+const SNAP_THRESHOLD = 0.3;
 
 export class SnapManager {
     private nodeManager: NodeManager;
