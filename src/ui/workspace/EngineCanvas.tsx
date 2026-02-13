@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { OrbitControls } from "@react-three/drei";
 import { ModuleMesh } from "./ModuleMesh.tsx";
 import { PlanGrid } from "./plan2d/PlanGrid";
+import { GroundPlane } from "./plan3d/GroundPlane";
 
 type Props = {
   viewMode: "2d" | "3d";
@@ -39,7 +40,12 @@ export const EngineCanvas = observer(({ viewMode }: Props) => {
     >
       <PlanGrid enabled={is2D} />
       <ambientLight intensity={is2D ? 1 : 0.8} />
-      {!is2D && <directionalLight position={[5, 10, 5]} castShadow />}
+      {!is2D && (
+        <>
+          <directionalLight position={[5, 10, 5]} castShadow />
+          <GroundPlane />
+        </>
+      )}
 
       <Suspense fallback={null}>
         {Array.from(composition.modules.values()).map((module) => (
