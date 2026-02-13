@@ -56,10 +56,49 @@ export class DesignController {
     };
 
     removeModule = (id: string) => {
+        this.nodeManager.disjointModule(id);
         this.moduleManager.removeModule(id);
     };
 
-    trySnap(module: ModuleInstance) {
+    selectModule = (moduleId: string | null) => {
+        this.composition.setSelectedModule(moduleId);
+    };
+
+    moveModuleGroup = (
+        module: ModuleInstance,
+        targetX: number,
+        targetY: number,
+        targetZ: number
+    ) => {
+        const groupIds = this.composition.graph.getConnectedModuleIds(
+            module.instanceId
+        );
+        const dx = targetX - module.transform.position.x;
+        const dy = targetY - module.transform.position.y;
+        const dz = targetZ - module.transform.position.z;
+
+        groupIds.forEach((id) => {
+            const connectedModule = this.composition.modules.get(id);
+
+            if (!connectedModule) return;
+
+            connectedModule.setPosition(
+                connectedModule.transform.position.x + dx,
+                connectedModule.transform.position.y + dy,
+                connectedModule.transform.position.z + dz
+            );
+        });
+    };
+
+    disjointSelectedModule = () => {
+        const selectedModuleId = this.composition.selectedModuleId;
+
+        if (!selectedModuleId) return;
+
+        this.nodeManager.disjointModule(selectedModuleId);
+    };
+
+    trySnap = (module: ModuleInstance) => {
         const result = this.snapManager.findSnapTarget(module);
 
         if (!result) return;
@@ -73,5 +112,11 @@ export class DesignController {
         module.setPosition(newPos.x, newPos.y, newPos.z);
 
         this.nodeManager.markOccupied(result.source, result.target);
-    }
+
+        if (typeof window !== "undefined") {
+            window.alert(
+                `Snapped ${result.source.module.instanceId}:${result.source.definition.id} -> ${result.target.module.instanceId}:${result.target.definition.id}`
+            );
+        }
+    };
 }

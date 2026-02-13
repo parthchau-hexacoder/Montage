@@ -1,8 +1,9 @@
 import { NodeInstance } from "../composition/NodeInstance";
+import type { Vec3 } from "../composition/types";
 import { NodeManager } from "./NodeManager";
 import { ModuleInstance } from "../composition/ModuleInstance";
 
-const SNAP_THRESHOLD = 2;
+const SNAP_THRESHOLD = 1;
 
 export class SnapManager {
     private nodeManager: NodeManager;
@@ -14,29 +15,29 @@ export class SnapManager {
     findSnapTarget(
         movingModule: ModuleInstance
     ): { source: NodeInstance; target: NodeInstance } | null {
-            const freeNodes = this.nodeManager.getAllFreeNodes();
+        const freeNodes = this.nodeManager.getAllFreeNodes();
+        let bestMatch: { source: NodeInstance; target: NodeInstance } | null = null;
+        let bestDistance = Number.POSITIVE_INFINITY;
 
-            for (const sourceNode of movingModule.nodes) {
-                if (sourceNode.occupied) continue;
+        for (const sourceNode of movingModule.nodes) {
+            if (sourceNode.occupied) continue;
 
-                for (const targetNode of freeNodes) {
-                    if (targetNode.module === movingModule) continue;
-                    if (targetNode.occupied) continue;
+            for (const targetNode of freeNodes) {
+                if (targetNode.module === movingModule) continue;
+                if (targetNode.occupied) continue;
 
-                    if (!sourceNode.isCompatibleWith(targetNode)) continue;
+                const sourcePos = sourceNode.worldPosition;
+                const targetPos = targetNode.worldPosition;
+                const dist = this.distance(sourcePos, targetPos);
 
-                    const dist = this.distance(
-                        sourceNode.worldPosition,
-                        targetNode.worldPosition
-                    );
-
-                    if (dist < SNAP_THRESHOLD) {
-                    return { source: sourceNode, target: targetNode };
+                if (dist < SNAP_THRESHOLD && dist < bestDistance) {
+                    bestDistance = dist;
+                    bestMatch = { source: sourceNode, target: targetNode };
                 }
             }
         }
 
-        return null;
+        return bestMatch;
     }
 
     computeSnapTransform(
@@ -55,7 +56,7 @@ export class SnapManager {
         };
     }
 
-    private distance(a: any, b: any) {
+    private distance(a: Vec3, b: Vec3) {
         return Math.sqrt(
             (a.x - b.x) ** 2 +
             (a.y - b.y) ** 2 +

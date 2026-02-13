@@ -5,6 +5,7 @@ import { ConnectionGraph } from "./ConnectionGraph";
 export class BuildingComposition{
     modules: Map<string, ModuleInstance> = new Map();
     graph = new ConnectionGraph();
+    selectedModuleId: string | null = null;
 
     constructor() {
         makeAutoObservable(this);
@@ -16,6 +17,14 @@ export class BuildingComposition{
 
     removeModule(instanceId: string){
         this.modules.delete(instanceId)
+
+        if (this.selectedModuleId === instanceId) {
+            this.selectedModuleId = null;
+        }
+    }
+
+    setSelectedModule(moduleId: string | null) {
+        this.selectedModuleId = moduleId;
     }
 
     get totalBeds(){

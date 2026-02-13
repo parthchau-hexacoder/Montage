@@ -6,11 +6,14 @@ import { OrbitControls } from "@react-three/drei";
 import { ModuleMesh } from "./ModuleMesh.tsx";
 
 export const EngineCanvas = observer(() => {
-  const { composition } = useDesign();
+  const { composition, selectModule } = useDesign();
   const [isDraggingModule, setIsDraggingModule] = useState(false);
 
   return (
-    <Canvas camera={{ position: [5, 5, 7], fov: 50 }}>
+    <Canvas
+      camera={{ position: [5, 5, 7], fov: 50 }}
+      onPointerMissed={() => selectModule(null)}
+    >
       <ambientLight intensity={0.8} />
       <directionalLight position={[5, 10, 5]} castShadow />
 

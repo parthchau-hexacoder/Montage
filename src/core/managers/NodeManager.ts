@@ -33,4 +33,30 @@ export class NodeManager {
             toNodeId: b.definition.id,
         });
     }
+
+    disjointModule(moduleId: string) {
+        const removed = this.composition.graph.removeConnectionsForModule(moduleId);
+
+        removed.forEach((connection) => {
+            const fromNode = this.findNode(
+                connection.fromModuleId,
+                connection.fromNodeId
+            );
+            const toNode = this.findNode(
+                connection.toModuleId,
+                connection.toNodeId
+            );
+
+            if (fromNode) fromNode.occupied = false;
+            if (toNode) toNode.occupied = false;
+        });
+    }
+
+    private findNode(moduleId: string, nodeId: string): NodeInstance | undefined {
+        const module = this.composition.modules.get(moduleId);
+
+        if (!module) return undefined;
+
+        return module.nodes.find((node) => node.definition.id === nodeId);
+    }
 }
