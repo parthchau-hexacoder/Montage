@@ -86,6 +86,10 @@ export class DesignController {
         return this.redoStack.length > 0;
     }
 
+    get availableModuleDefinitions() {
+        return this.moduleManager.getDefinitions();
+    }
+
     addModule = (typeId: string) => {
         const before = this.captureSnapshot();
         const module = this.moduleManager.createModule(typeId);

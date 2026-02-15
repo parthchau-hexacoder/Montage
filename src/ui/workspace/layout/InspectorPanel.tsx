@@ -8,15 +8,21 @@ export const InspectorPanel = observer(() => {
   const { composition } = useDesign();
 
   return (
-    <aside className="w-64 border-l border-gray-200 bg-[#f7f7f8]">
+    <aside className="flex h-full w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-[#f7f7f8]">
       <div className="border-b border-gray-200 px-6 py-5">
-        <div className="flex items-baseline gap-2 text-gray-800">
-          <span className="text-4xl font-semibold">{composition.totalBeds}</span>
-          <span className="text-sm">Bed</span>
-          <span className="text-4xl font-semibold">{composition.totalBaths}</span>
-          <span className="text-sm">Bath</span>
-          <span className="text-4xl font-semibold">{composition.totalSqft}</span>
-          <span className="text-sm">sqft</span>
+        <div className="grid grid-cols-3 gap-2 text-gray-800">
+          <div className="min-w-0">
+            <div className="truncate text-2xl font-semibold">{composition.totalBeds}</div>
+            <div className="text-sm">Bed</div>
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-2xl font-semibold">{composition.totalBaths}</div>
+            <div className="text-sm">Bath</div>
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-2xl font-semibold">{composition.totalSqft}</div>
+            <div className="text-sm">sqft</div>
+          </div>
         </div>
       </div>
 
@@ -24,7 +30,7 @@ export const InspectorPanel = observer(() => {
         <div className="mx-auto mb-5 h-24 w-36 rounded border border-gray-300 bg-white" />
 
         <section>
-          <h3 className="text-3xl font-semibold text-gray-800">Exterior Finish</h3>
+          <h3 className="text-xl font-semibold text-gray-800">Exterior Finish</h3>
           <div className="mt-3 flex gap-2">
             {FINISH_SWATCHES.map((color, index) => (
               <button
@@ -40,7 +46,7 @@ export const InspectorPanel = observer(() => {
         </section>
 
         <section className="mt-6">
-          <h3 className="text-3xl font-semibold text-gray-800">Exterior Accent</h3>
+          <h3 className="text-xl font-semibold text-gray-800">Exterior Accent</h3>
           <div className="mt-3 flex gap-2">
             {ACCENT_SWATCHES.map((color, index) => (
               <button
@@ -58,12 +64,12 @@ export const InspectorPanel = observer(() => {
 
       <div className="mt-auto border-t border-gray-200 px-4 py-4">
         <div className="mb-3 h-3 rounded bg-gradient-to-r from-gray-400 to-gray-500" />
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="text-2xl font-semibold text-gray-800">${composition.totalCost}</div>
-            <div className="text-[10px] text-gray-500">Estimated Construction Cost</div>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-2xl font-semibold text-gray-800">${composition.totalCost}</div>
+            <div className="truncate text-[10px] text-gray-500">Estimated Construction Cost</div>
           </div>
-          <button className="rounded bg-blue-900 px-4 py-2 text-xs font-semibold text-white">
+          <button className="shrink-0 rounded bg-blue-900 px-4 py-2 text-xs font-semibold text-white">
             Order Now
           </button>
         </div>
