@@ -1,16 +1,11 @@
 import { NodeInstance } from "../composition/NodeInstance";
-import type { Vec3 } from "../composition/types";
 import { NodeManager } from "./NodeManager";
 import { ModuleInstance } from "../composition/ModuleInstance";
 import { Euler, Quaternion, Vector3 } from "three";
-import {
-    calculateModuleBoundingBox,
-    doBoundingBoxesOverlap,
-} from "../utils/OverlapDetector";
+
 
 const SNAP_THRESHOLD = 0.3;
 const SNAP_THRESHOLD_SQ = SNAP_THRESHOLD * SNAP_THRESHOLD;
-const SNAP_CLEARANCE = 0.02;
 const PARALLEL_DOT_TOLERANCE = 1e-4;
 
 type RuntimeNode = {
