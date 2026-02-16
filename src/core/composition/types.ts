@@ -4,6 +4,11 @@ export type Vec3 = {
   z: number;
 };
 
+export type Bounds3 = {
+  min: Vec3;
+  max: Vec3;
+};
+
 export type Transform = {
   position: Vec3;
   rotation: Vec3;

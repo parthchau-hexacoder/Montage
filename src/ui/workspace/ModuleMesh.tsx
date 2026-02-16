@@ -15,7 +15,13 @@ type Props = {
 
 export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: Props) => {
   const { scene } = useGLTF(module.definition.glbPath);
-  const { trySnap, moveModuleGroup, selectModule, beginInteraction, endInteraction } = useDesign();
+  const {
+    trySnap,
+    moveModuleGroup,
+    selectModule,
+    beginInteraction,
+    endInteraction,
+  } = useDesign();
   const { size, viewport } = useThree();
   const moduleScene = useMemo(() => scene.clone(true), [scene, module.instanceId]);
   const freeNodeIds = module.nodes
@@ -65,7 +71,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     trySnap(module);
 
     if (last) {
-      endInteraction();
+      endInteraction(module);
     }
 
     return start;
@@ -77,9 +83,9 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
       onClick={
         interactive
           ? (event) => {
-              event.stopPropagation();
-              selectModule(module.instanceId);
-            }
+            event.stopPropagation();
+            selectModule(module.instanceId);
+          }
           : undefined
       }
       position={[

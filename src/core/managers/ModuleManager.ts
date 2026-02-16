@@ -1,13 +1,19 @@
+import { reaction, type IReactionDisposer } from "mobx";
 import { ModuleDefinition } from "../composition/ModuleDefinition";
 import { ModuleInstance } from "../composition/ModuleInstance";
 import { BuildingComposition } from "../composition/BuildingComposition";
+import type { Bounds3 } from "../composition/types";
+import { ModuleOverlapManager } from "./ModuleOverlapManager";
 
 export class ModuleManager {
     private definitions: Map<string, ModuleDefinition> = new Map();
     private composition: BuildingComposition;
+    private overlapManager: ModuleOverlapManager;
+    private disposers = new Map<string, IReactionDisposer>();
 
     constructor(composition: BuildingComposition) {
         this.composition = composition;
+        this.overlapManager = new ModuleOverlapManager(composition);
     }
 
     registerDefinition(def: ModuleDefinition) {
@@ -21,14 +27,48 @@ export class ModuleManager {
         const instance = new ModuleInstance(def);
         this.composition.addModule(instance);
 
+        const disposer = reaction(
+            () => instance.localBounds,
+            (bounds) => {
+                if (bounds) {
+                    this.overlapManager.resolveModuleOverlapByOffset(instance);
+                }
+            },
+            { fireImmediately: true }
+        );
+        this.disposers.set(instance.instanceId, disposer);
+
         return instance;
     }
 
     removeModule(instanceId: string) {
+        const disposer = this.disposers.get(instanceId);
+        if (disposer) {
+            disposer();
+            this.disposers.delete(instanceId);
+        }
         this.composition.removeModule(instanceId);
     }
 
     getDefinitions() {
         return Array.from(this.definitions.values());
+    }
+
+    calculateBoundingBox(module: ModuleInstance): Bounds3 | null {
+        return this.overlapManager.calculateBoundingBox(module);
+    }
+
+    getOverlappingModules(
+        module: ModuleInstance,
+        epsilon = 0
+    ): ModuleInstance[] {
+        return this.overlapManager.getOverlappingModules(module, epsilon);
+    }
+
+    hasOverlappedWithOtherModule(
+        module: ModuleInstance,
+        epsilon = 0
+    ): boolean {
+        return this.overlapManager.hasOverlappedWithOtherModule(module, epsilon);
     }
 }

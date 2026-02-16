@@ -1,6 +1,6 @@
 import { makeAutoObservable } from "mobx";
 import { ModuleDefinition } from "./ModuleDefinition";
-import type { NodeDefinition, NodeType, Transform } from "./types";
+import type { Bounds3, NodeDefinition, NodeType, Transform } from "./types";
 import { NodeInstance } from "./NodeInstance";
 import type { Object3D } from "three";
 import * as THREE from "three";
@@ -12,6 +12,7 @@ export class ModuleInstance {
     readonly definition: ModuleDefinition;
     nodes: NodeInstance[] = [];
     private nodesRegisteredFromScene = false;
+    localBounds: Bounds3 | null = null;
 
     transform: Transform;
 
@@ -34,14 +35,13 @@ export class ModuleInstance {
     registerNodesFromScene(scene: Object3D) {
         if (this.nodesRegisteredFromScene) return;
 
-        if (this.nodes.length > 0) {
-            this.nodesRegisteredFromScene = true;
-            return;
+        this.localBounds = extractSceneLocalBounds(scene);
+
+        if (this.nodes.length === 0) {
+            const nodeDefs = extractNodeDefinitions(scene);
+            this.nodes = nodeDefs.map((nodeDef) => new NodeInstance(nodeDef, this));
         }
 
-        const nodeDefs = extractNodeDefinitions(scene);
-
-        this.nodes = nodeDefs.map((nodeDef) => new NodeInstance(nodeDef, this));
         this.nodesRegisteredFromScene = true;
     }
 
@@ -170,4 +170,28 @@ function getAnchorWorldPosition(
     }
 
     object.getWorldPosition(out);
+}
+
+function extractSceneLocalBounds(scene: Object3D): Bounds3 | null {
+    const sceneBounds = new THREE.Box3();
+
+    scene.updateWorldMatrix(true, true);
+    sceneBounds.setFromObject(scene);
+
+    if (sceneBounds.isEmpty()) {
+        return null;
+    }
+
+    return {
+        min: {
+            x: sceneBounds.min.x,
+            y: sceneBounds.min.y,
+            z: sceneBounds.min.z,
+        },
+        max: {
+            x: sceneBounds.max.x,
+            y: sceneBounds.max.y,
+            z: sceneBounds.max.z,
+        },
+    };
 }

@@ -7,7 +7,7 @@ import { SnapManager } from "../../core/managers/SnapManager";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import { NodeInstance } from "../../core/composition/NodeInstance";
 import type { ConnectionRecord } from "../../core/composition/ConnectionGraph";
-import type { NodeDefinition, Transform } from "../../core/composition/types";
+import type { Bounds3, NodeDefinition, Transform } from "../../core/composition/types";
 
 type ModuleSnapshot = {
     instanceId: string;
@@ -26,6 +26,8 @@ type CompositionSnapshot = {
 };
 
 const HISTORY_LIMIT = 100;
+const NEW_MODULE_OFFSET_STEP = 0.5;
+const NEW_MODULE_OFFSET_TRIES = 80;
 
 export class DesignController {
     composition: BuildingComposition;
@@ -150,6 +152,7 @@ export class DesignController {
 
         if (!result) return;
 
+        const previousPosition = { ...module.transform.position };
         const newPos = this.snapManager.computeSnapTransform(
             module,
             result.source,
@@ -158,7 +161,35 @@ export class DesignController {
 
         module.setPosition(newPos.x, newPos.y, newPos.z);
 
+        const isOverlapped = this.hasOverlappedWithOtherModule(module);
+        if (isOverlapped) {
+            module.setPosition(
+                previousPosition.x,
+                previousPosition.y,
+                previousPosition.z
+            );
+            return;
+        }
+
         this.nodeManager.markOccupied(result.source, result.target);
+    };
+
+    calculateBoundingBox = (module: ModuleInstance): Bounds3 | null => {
+        return this.moduleManager.calculateBoundingBox(module);
+    };
+
+    hasOverlappedWithOtherModule = (
+        module: ModuleInstance,
+        epsilon = 0
+    ): boolean => {
+        return this.moduleManager.hasOverlappedWithOtherModule(module, epsilon);
+    };
+
+    getOverlappingModules = (
+        module: ModuleInstance,
+        epsilon = 0
+    ): ModuleInstance[] => {
+        return this.moduleManager.getOverlappingModules(module, epsilon);
     };
 
     beginInteraction = () => {
@@ -167,7 +198,7 @@ export class DesignController {
         this.interactionStartSnapshot = this.captureSnapshot();
     };
 
-    endInteraction = () => {
+    endInteraction = (_movedModule?: ModuleInstance) => {
         if (!this.interactionStartSnapshot) return;
 
         this.trackStateChange(this.interactionStartSnapshot);
@@ -292,4 +323,5 @@ export class DesignController {
     private isSameSnapshot(a: CompositionSnapshot, b: CompositionSnapshot) {
         return JSON.stringify(a) === JSON.stringify(b);
     }
+
 }
