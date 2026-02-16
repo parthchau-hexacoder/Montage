@@ -140,6 +140,8 @@ export class DesignController {
     };
 
     rotateModuleQuarter = (module: ModuleInstance, direction: "cw" | "ccw") => {
+        if (!this.canRotateModule(module)) return;
+
         this.beginInteraction();
 
         const delta = direction === "cw" ? QUARTER_TURN_RADIANS : -QUARTER_TURN_RADIANS;
@@ -152,6 +154,10 @@ export class DesignController {
         );
 
         this.endInteraction(module);
+    };
+
+    canRotateModule = (module: ModuleInstance): boolean => {
+        return this.composition.graph.getConnectionsForModule(module.instanceId).length === 0;
     };
 
     disjointSelectedModule = () => {

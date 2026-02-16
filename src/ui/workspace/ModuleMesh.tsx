@@ -20,6 +20,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     composition,
     trySnap,
     moveModuleGroup,
+    canRotateModule,
     selectModule,
     beginInteraction,
     endInteraction,
@@ -91,6 +92,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     return { corners, geometry };
   }, [module.localBounds, moduleScene]);
   const isSelected = composition.selectedModuleId === module.instanceId;
+  const canRotate = canRotateModule(module);
   const freeNodeIds = module.nodes
     .filter((node) => !node.occupied)
     .map((node) => node.definition.id);
@@ -155,7 +157,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
   }, { enabled: interactive && !isRotatingHandle });
 
   const rotateBind = useDrag(({ xy: [pointerX, pointerY], first, last, memo }) => {
-    if (!interactive) return memo;
+    if (!interactive || !canRotate) return memo;
 
     const centerWorld = new THREE.Vector3(
       module.transform.position.x,
@@ -208,7 +210,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
 
     return state;
   }, {
-    enabled: interactive,
+    enabled: interactive && canRotate,
     pointer: { capture: true },
     filterTaps: true,
   });
@@ -269,7 +271,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
                   }}
                 >
                   <circleGeometry args={[0.1, 24]} />
-                  <meshBasicMaterial color="#fff" />
+                  <meshBasicMaterial color={canRotate ? "#fff" : "#9e9e9e"} />
                 </mesh>
               );
             })}
