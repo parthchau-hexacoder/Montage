@@ -28,6 +28,7 @@ type CompositionSnapshot = {
 const HISTORY_LIMIT = 100;
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
+const QUARTER_TURN_RADIANS = Math.PI / 2;
 
 export class DesignController {
     composition: BuildingComposition;
@@ -95,6 +96,7 @@ export class DesignController {
     addModule = (typeId: string) => {
         const before = this.captureSnapshot();
         const module = this.moduleManager.createModule(typeId);
+        this.composition.setSelectedModule(module.instanceId);
         this.trackStateChange(before);
 
         return module;
@@ -135,6 +137,21 @@ export class DesignController {
                 connectedModule.transform.position.z + dz
             );
         });
+    };
+
+    rotateModuleQuarter = (module: ModuleInstance, direction: "cw" | "ccw") => {
+        this.beginInteraction();
+
+        const delta = direction === "cw" ? QUARTER_TURN_RADIANS : -QUARTER_TURN_RADIANS;
+        const nextY = module.transform.rotation.y + delta;
+
+        module.setRotation(
+            module.transform.rotation.x,
+            nextY,
+            module.transform.rotation.z
+        );
+
+        this.endInteraction(module);
     };
 
     disjointSelectedModule = () => {
