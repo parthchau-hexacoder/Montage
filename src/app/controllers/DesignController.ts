@@ -26,8 +26,8 @@ type CompositionSnapshot = {
 };
 
 const HISTORY_LIMIT = 100;
-const NEW_MODULE_OFFSET_STEP = 0.5;
-const NEW_MODULE_OFFSET_TRIES = 80;
+const DISJOINT_OFFSET_STEP = 0.4;
+const DISJOINT_OFFSET_TRIES = 8;
 
 export class DesignController {
     composition: BuildingComposition;
@@ -143,7 +143,15 @@ export class DesignController {
         if (!selectedModuleId) return;
 
         const before = this.captureSnapshot();
-        this.nodeManager.disjointModule(selectedModuleId);
+        const removedConnections = this.nodeManager.disjointModule(selectedModuleId);
+
+        if (removedConnections > 0) {
+            const module = this.composition.modules.get(selectedModuleId);
+            if (module) {
+                this.offsetDisjointedModule(module);
+            }
+        }
+
         this.trackStateChange(before);
     };
 
@@ -237,6 +245,30 @@ export class DesignController {
             this.undoStack.shift();
         }
         this.redoStack = [];
+    }
+
+    private offsetDisjointedModule(module: ModuleInstance) {
+        const start = { ...module.transform.position };
+        const directions = [
+            { x: 1, z: 0 },
+            { x: -1, z: 0 },
+            { x: 0, z: 1 },
+            { x: 0, z: -1 },
+        ];
+
+        for (let step = 1; step <= DISJOINT_OFFSET_TRIES; step++) {
+            for (const direction of directions) {
+                module.setPosition(
+                    start.x + direction.x * DISJOINT_OFFSET_STEP * step,
+                    start.y,
+                    start.z + direction.z * DISJOINT_OFFSET_STEP * step
+                );
+
+                if (!this.hasOverlappedWithOtherModule(module)) {
+                    return;
+                }
+            }
+        }
     }
 
     private captureSnapshot(): CompositionSnapshot {

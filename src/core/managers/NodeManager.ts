@@ -34,7 +34,7 @@ export class NodeManager {
         });
     }
 
-    disjointModule(moduleId: string) {
+    disjointModule(moduleId: string): number {
         const removed = this.composition.graph.removeConnectionsForModule(moduleId);
 
         removed.forEach((connection) => {
@@ -50,6 +50,8 @@ export class NodeManager {
             if (fromNode) fromNode.occupied = false;
             if (toNode) toNode.occupied = false;
         });
+
+        return removed.length;
     }
 
     private findNode(moduleId: string, nodeId: string): NodeInstance | undefined {
