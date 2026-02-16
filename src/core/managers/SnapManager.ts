@@ -2,6 +2,7 @@ import { NodeInstance } from "../composition/NodeInstance";
 import type { Vec3 } from "../composition/types";
 import { NodeManager } from "./NodeManager";
 import { ModuleInstance } from "../composition/ModuleInstance";
+import { Euler, Quaternion, Vector3 } from "three";
 import {
     calculateModuleBoundingBox,
     doBoundingBoxesOverlap,
@@ -9,6 +10,7 @@ import {
 
 const SNAP_THRESHOLD = 0.3;
 const SNAP_CLEARANCE = 0.02;
+const PARALLEL_DOT_TOLERANCE = 1e-4;
 
 export class SnapManager {
     private nodeManager: NodeManager;
@@ -30,6 +32,7 @@ export class SnapManager {
             for (const targetNode of freeNodes) {
                 if (targetNode.module === movingModule) continue;
                 if (targetNode.occupied) continue;
+                if (!this.areNodesParallel(sourceNode, targetNode)) continue;
 
                 const sourcePos = sourceNode.worldPosition;
                 const targetPos = targetNode.worldPosition;
@@ -142,5 +145,70 @@ export class SnapManager {
             y: v.y / len,
             z: v.z / len,
         };
+    }
+
+    private areNodesParallel(a: NodeInstance, b: NodeInstance): boolean {
+        const dirA = this.getNodeDirection(a);
+        const dirB = this.getNodeDirection(b);
+        const dot = dirA.x * dirB.x + dirA.y * dirB.y + dirA.z * dirB.z;
+        const absDot = Math.abs(dot);
+
+        // Strict parallel check: same or opposite direction only.
+        return Math.abs(1 - absDot) <= PARALLEL_DOT_TOLERANCE;
+    }
+
+    private getNodeDirection(node: NodeInstance): Vec3 {
+        const boundsDirection = this.getNodeDirectionFromBounds(node);
+
+        if (boundsDirection) {
+            return boundsDirection;
+        }
+
+        return this.getNodeDirectionFromRotation(node);
+    }
+
+    private getNodeDirectionFromBounds(node: NodeInstance): Vec3 | null {
+        const bounds = node.module.localBounds;
+
+        if (!bounds) {
+            return null;
+        }
+
+        const localPosition = node.definition.position;
+        const distances = [
+            { normal: new Vector3(-1, 0, 0), distance: Math.abs(localPosition.x - bounds.min.x) },
+            { normal: new Vector3(1, 0, 0), distance: Math.abs(bounds.max.x - localPosition.x) },
+            { normal: new Vector3(0, 0, -1), distance: Math.abs(localPosition.z - bounds.min.z) },
+            { normal: new Vector3(0, 0, 1), distance: Math.abs(bounds.max.z - localPosition.z) },
+        ];
+        const closest = distances.reduce((best, item) =>
+            item.distance < best.distance ? item : best
+        );
+        const moduleRotation = node.module.transform.rotation;
+        const moduleQuaternion = new Quaternion().setFromEuler(
+            new Euler(moduleRotation.x, moduleRotation.y, moduleRotation.z, "XYZ")
+        );
+        const worldNormal = closest.normal.applyQuaternion(moduleQuaternion).normalize();
+
+        return {
+            x: worldNormal.x,
+            y: worldNormal.y,
+            z: worldNormal.z,
+        };
+    }
+
+    private getNodeDirectionFromRotation(node: NodeInstance): Vec3 {
+        const nodeRotation = node.definition.rotation;
+        const moduleRotation = node.module.transform.rotation;
+        const nodeQuaternion = new Quaternion().setFromEuler(
+            new Euler(nodeRotation.x, nodeRotation.y, nodeRotation.z, "XYZ")
+        );
+        const moduleQuaternion = new Quaternion().setFromEuler(
+            new Euler(moduleRotation.x, moduleRotation.y, moduleRotation.z, "XYZ")
+        );
+        const worldQuaternion = moduleQuaternion.multiply(nodeQuaternion);
+        const forward = new Vector3(0, 0, 1).applyQuaternion(worldQuaternion).normalize();
+
+        return { x: forward.x, y: forward.y, z: forward.z };
     }
 }
