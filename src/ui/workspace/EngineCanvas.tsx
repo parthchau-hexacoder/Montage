@@ -57,6 +57,8 @@ export const EngineCanvas = observer(({ viewMode, zoomCommand }: Props) => {
       key={viewMode}
       orthographic={is2D}
       camera={cameraProps}
+      dpr={[1, 1.5]}
+      gl={{ powerPreference: "high-performance", antialias: true }}
       onCreated={({ camera }) => {
         cameraRef.current = camera;
 
@@ -76,7 +78,7 @@ export const EngineCanvas = observer(({ viewMode, zoomCommand }: Props) => {
       <ambientLight intensity={is2D ? 1 : 0.8} />
       {!is2D && (
         <>
-          <directionalLight position={[5, 10, 5]} castShadow />
+          <directionalLight position={[5, 10, 5]} />
           <GroundPlane />
         </>
       )}

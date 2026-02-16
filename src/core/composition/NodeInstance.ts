@@ -19,39 +19,36 @@ export class NodeInstance {
     get worldPosition(): Vec3 {
         const { position } = this.module.transform;
         const { rotation } = this.module.transform;
-        const local = new Vector3(
+        _tmpLocalPosition.set(
             this.definition.position.x,
             this.definition.position.y,
             this.definition.position.z
         );
-        const moduleQuaternion = new Quaternion().setFromEuler(
-            new Euler(rotation.x, rotation.y, rotation.z, "XYZ")
-        );
-        const worldOffset = local.applyQuaternion(moduleQuaternion);
+        _tmpRotationEuler.set(rotation.x, rotation.y, rotation.z, "XYZ");
+        _tmpModuleQuaternion.setFromEuler(_tmpRotationEuler);
+        _tmpLocalPosition.applyQuaternion(_tmpModuleQuaternion);
 
         return {
-            x: position.x + worldOffset.x,
-            y: position.y + worldOffset.y,
-            z: position.z + worldOffset.z,
+            x: position.x + _tmpLocalPosition.x,
+            y: position.y + _tmpLocalPosition.y,
+            z: position.z + _tmpLocalPosition.z,
         };
     }
 
     get worldRotation(): Vec3 {
         const nodeRotation = this.definition.rotation;
         const moduleRotation = this.module.transform.rotation;
-        const nodeQuaternion = new Quaternion().setFromEuler(
-            new Euler(nodeRotation.x, nodeRotation.y, nodeRotation.z, "XYZ")
-        );
-        const moduleQuaternion = new Quaternion().setFromEuler(
-            new Euler(moduleRotation.x, moduleRotation.y, moduleRotation.z, "XYZ")
-        );
-        const worldQuaternion = moduleQuaternion.multiply(nodeQuaternion);
-        const worldEuler = new Euler(0, 0, 0, "XYZ").setFromQuaternion(worldQuaternion);
+        _tmpNodeEuler.set(nodeRotation.x, nodeRotation.y, nodeRotation.z, "XYZ");
+        _tmpNodeQuaternion.setFromEuler(_tmpNodeEuler);
+        _tmpModuleEuler.set(moduleRotation.x, moduleRotation.y, moduleRotation.z, "XYZ");
+        _tmpModuleQuaternion.setFromEuler(_tmpModuleEuler);
+        _tmpWorldQuaternion.copy(_tmpModuleQuaternion).multiply(_tmpNodeQuaternion);
+        _tmpWorldEuler.setFromQuaternion(_tmpWorldQuaternion);
 
         return {
-            x: worldEuler.x,
-            y: worldEuler.y,
-            z: worldEuler.z,
+            x: _tmpWorldEuler.x,
+            y: _tmpWorldEuler.y,
+            z: _tmpWorldEuler.z,
         };
     }
 
@@ -59,3 +56,12 @@ export class NodeInstance {
         return this.definition.compatibleWith.includes(other.definition.type);
     }
 }
+
+const _tmpLocalPosition = new Vector3();
+const _tmpRotationEuler = new Euler(0, 0, 0, "XYZ");
+const _tmpNodeEuler = new Euler(0, 0, 0, "XYZ");
+const _tmpModuleEuler = new Euler(0, 0, 0, "XYZ");
+const _tmpWorldEuler = new Euler(0, 0, 0, "XYZ");
+const _tmpNodeQuaternion = new Quaternion();
+const _tmpModuleQuaternion = new Quaternion();
+const _tmpWorldQuaternion = new Quaternion();

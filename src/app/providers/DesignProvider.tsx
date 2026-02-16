@@ -14,4 +14,5 @@ export const DesignProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDesign = () => useContext(DesignContext);

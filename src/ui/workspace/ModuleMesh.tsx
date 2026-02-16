@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { useGLTF } from "@react-three/drei";
 import { useDrag } from "@use-gesture/react";
-import { useThree } from "@react-three/fiber";
+import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
@@ -26,7 +26,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     endInteraction,
   } = useDesign();
   const { camera, size, viewport } = useThree();
-  const moduleScene = useMemo(() => scene.clone(true), [scene, module.instanceId]);
+  const moduleScene = useMemo(() => scene.clone(true), [scene]);
   const ghostScene = useMemo(() => {
     const cloned = scene.clone(true);
 
@@ -53,7 +53,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     });
 
     return cloned;
-  }, [scene, module.instanceId]);
+  }, [scene]);
   const [rotationPreviewY, setRotationPreviewY] = useState<number | null>(null);
   const [isRotatingHandle, setIsRotatingHandle] = useState(false);
   const selectionOverlay = useMemo(() => {
@@ -96,29 +96,37 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
   const freeNodeIds = module.nodes
     .filter((node) => !node.occupied)
     .map((node) => node.definition.id);
-  const freeNodeKey = freeNodeIds.slice().sort().join("|");
+  const freeNodeIdsSet = useMemo(() => new Set(freeNodeIds), [freeNodeIds]);
 
   useEffect(() => {
-    module.registerNodesFromScene(moduleScene);
-  }, [module, moduleScene]);
+    // Register nodes/bounds from a detached clone so parent world transforms
+    // (module position/rotation in the canvas) are never baked into local bounds.
+    module.registerNodesFromScene(scene.clone(true));
+  }, [module, scene]);
 
   useEffect(() => {
     if (!interactive) return;
 
     applyPlan2DStyle(moduleScene, {
       enabled: interactive,
-      freeNodeIds: new Set(freeNodeIds),
+      freeNodeIds: freeNodeIdsSet,
     });
-  }, [moduleScene, interactive, freeNodeKey]);
+  }, [moduleScene, interactive, freeNodeIdsSet]);
 
   useEffect(() => {
     if (!interactive) return;
 
     applyPlan2DStyle(ghostScene, {
       enabled: interactive,
-      freeNodeIds: new Set(freeNodeIds),
+      freeNodeIds: freeNodeIdsSet,
     });
-  }, [ghostScene, interactive, freeNodeKey]);
+  }, [ghostScene, interactive, freeNodeIdsSet]);
+
+  useEffect(() => {
+    return () => {
+      selectionOverlay?.geometry.dispose();
+    };
+  }, [selectionOverlay]);
 
   const bind = useDrag(({ movement: [mx, my], first, last, memo }) => {
     if (!interactive) return memo;
@@ -150,7 +158,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     trySnap(module);
 
     if (last) {
-      endInteraction(module);
+      endInteraction();
     }
 
     return start;
@@ -197,15 +205,17 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     if (last) {
       const quarterTurns = Math.round(state.accumulatedAngle / (Math.PI / 2));
       const committedY = state.baseRotationY + quarterTurns * (Math.PI / 2);
+      const currentRotation = module.transform.rotation;
+
       module.setRotation(
-        module.transform.rotation.x,
+        currentRotation.x,
         committedY,
-        module.transform.rotation.z
+        currentRotation.z
       );
       setRotationPreviewY(null);
       setIsRotatingHandle(false);
       onDragStateChange?.(false);
-      endInteraction(module);
+      endInteraction();
     }
 
     return state;
@@ -214,6 +224,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
     pointer: { capture: true },
     filterTaps: true,
   });
+  const rotateHandlers = rotateBind();
 
   return (
     <group
@@ -256,25 +267,25 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
             <lineSegments geometry={selectionOverlay.geometry}>
               <lineBasicMaterial color="#ffd400" />
             </lineSegments>
-            {selectionOverlay.corners.map((corner, index) => {
-              const rotateHandlers = rotateBind();
-
-              return (
-                <mesh
-                  key={`${module.instanceId}-corner-${index}`}
-                  {...rotateHandlers}
-                  position={corner}
-                  rotation={[-Math.PI / 2, 0, 0]}
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    rotateHandlers.onPointerDown?.(event as any);
-                  }}
-                >
-                  <circleGeometry args={[0.1, 24]} />
-                  <meshBasicMaterial color={canRotate ? "#fff" : "#9e9e9e"} />
-                </mesh>
-              );
-            })}
+            {selectionOverlay.corners.map((corner, index) => (
+              <mesh
+                key={`${module.instanceId}-corner-${index}`}
+                {...rotateHandlers}
+                position={corner}
+                rotation={[-Math.PI / 2, 0, 0]}
+                onPointerDown={(event: ThreeEvent<PointerEvent>) => {
+                  event.stopPropagation();
+                  const gestureEvent =
+                    event as unknown as Parameters<
+                      NonNullable<typeof rotateHandlers.onPointerDown>
+                    >[0];
+                  rotateHandlers.onPointerDown?.(gestureEvent);
+                }}
+              >
+                <circleGeometry args={[0.1, 24]} />
+                <meshBasicMaterial color={canRotate ? "#fff" : "#9e9e9e"} />
+              </mesh>
+            ))}
           </group>
         )}
       </group>

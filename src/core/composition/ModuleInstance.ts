@@ -13,6 +13,7 @@ export class ModuleInstance {
     nodes: NodeInstance[] = [];
     private nodesRegisteredFromScene = false;
     localBounds: Bounds3 | null = null;
+    worldBounds: Bounds3 | null = null;
 
     transform: Transform;
 
@@ -29,13 +30,22 @@ export class ModuleInstance {
             (nodeDef) => new NodeInstance(nodeDef, this)
         );
 
-        makeAutoObservable(this);
+        makeAutoObservable(
+            this,
+            {
+                instanceId: false,
+                definition: false,
+                worldBounds: false,
+            },
+            { autoBind: true }
+        );
     }
 
     registerNodesFromScene(scene: Object3D) {
         if (this.nodesRegisteredFromScene) return;
 
         this.localBounds = extractSceneLocalBounds(scene);
+        this.updateWorldBounds();
 
         if (this.nodes.length === 0) {
             const nodeDefs = extractNodeDefinitions(scene);
@@ -46,11 +56,29 @@ export class ModuleInstance {
     }
 
     setPosition(x: number, y: number, z: number) {
-        this.transform.position = { x, y, z };
+        const position = this.transform.position;
+
+        if (position.x === x && position.y === y && position.z === z) {
+            return;
+        }
+
+        position.x = x;
+        position.y = y;
+        position.z = z;
+        this.updateWorldBounds();
     }
 
     setRotation(x: number, y: number, z: number) {
-        this.transform.rotation = { x, y, z };
+        const rotation = this.transform.rotation;
+
+        if (rotation.x === x && rotation.y === y && rotation.z === z) {
+            return;
+        }
+
+        rotation.x = x;
+        rotation.y = y;
+        rotation.z = z;
+        this.updateWorldBounds();
     }
 
     get metrics() {
@@ -60,7 +88,71 @@ export class ModuleInstance {
     get baseCost() {
         return this.definition.baseCost;
     }
+
+    private updateWorldBounds() {
+        if (!this.localBounds) {
+            this.worldBounds = null;
+            return;
+        }
+
+        const { min, max } = this.localBounds;
+        const position = this.transform.position;
+        const rotation = this.transform.rotation;
+
+        _tmpEuler.set(rotation.x, rotation.y, rotation.z, "XYZ");
+        _tmpQuaternion.setFromEuler(_tmpEuler);
+        _tmpPosition.set(position.x, position.y, position.z);
+
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let minZ = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        let maxZ = Number.NEGATIVE_INFINITY;
+
+        for (let xIndex = 0; xIndex < 2; xIndex++) {
+            for (let yIndex = 0; yIndex < 2; yIndex++) {
+                for (let zIndex = 0; zIndex < 2; zIndex++) {
+                    _tmpCorner
+                        .set(
+                            xIndex === 0 ? min.x : max.x,
+                            yIndex === 0 ? min.y : max.y,
+                            zIndex === 0 ? min.z : max.z
+                        )
+                        .applyQuaternion(_tmpQuaternion)
+                        .add(_tmpPosition);
+
+                    if (_tmpCorner.x < minX) minX = _tmpCorner.x;
+                    if (_tmpCorner.y < minY) minY = _tmpCorner.y;
+                    if (_tmpCorner.z < minZ) minZ = _tmpCorner.z;
+                    if (_tmpCorner.x > maxX) maxX = _tmpCorner.x;
+                    if (_tmpCorner.y > maxY) maxY = _tmpCorner.y;
+                    if (_tmpCorner.z > maxZ) maxZ = _tmpCorner.z;
+                }
+            }
+        }
+
+        if (!this.worldBounds) {
+            this.worldBounds = {
+                min: { x: minX, y: minY, z: minZ },
+                max: { x: maxX, y: maxY, z: maxZ },
+            };
+            return;
+        }
+
+        this.worldBounds.min.x = minX;
+        this.worldBounds.min.y = minY;
+        this.worldBounds.min.z = minZ;
+        this.worldBounds.max.x = maxX;
+        this.worldBounds.max.y = maxY;
+        this.worldBounds.max.z = maxZ;
+    }
 }
+
+const _tmpEuler = new THREE.Euler(0, 0, 0, "XYZ");
+const _tmpQuaternion = new THREE.Quaternion();
+const _tmpPosition = new THREE.Vector3();
+const _tmpCorner = new THREE.Vector3();
 
 const SUPPORTED_NODE_TYPES: readonly NodeType[] = ["WALL", "DOOR", "ROOF"];
 

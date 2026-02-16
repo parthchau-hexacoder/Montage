@@ -62,8 +62,6 @@ function PreviewScene({ object }: { object: THREE.Object3D }) {
     const position = center.clone().add(direction.multiplyScalar(distance));
 
     camera.position.copy(position);
-    camera.near = Math.max(distance / 100, 0.01);
-    camera.far = Math.max(distance * 30, 50);
     camera.lookAt(center);
     camera.updateProjectionMatrix();
   }, [camera, object, size.width, size.height]);

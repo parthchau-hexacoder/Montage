@@ -38,6 +38,9 @@ export class DesignController {
     private undoStack: CompositionSnapshot[] = [];
     private redoStack: CompositionSnapshot[] = [];
     private interactionStartSnapshot: CompositionSnapshot | null = null;
+    private moveGroupCache:
+        | { moduleId: string; graphVersion: number; groupIds: string[] }
+        | null = null;
 
     constructor() {
         this.composition = new BuildingComposition();
@@ -119,12 +122,37 @@ export class DesignController {
         targetY: number,
         targetZ: number
     ) => {
-        const groupIds = this.composition.graph.getConnectedModuleIds(
-            module.instanceId
-        );
         const dx = targetX - module.transform.position.x;
         const dy = targetY - module.transform.position.y;
         const dz = targetZ - module.transform.position.z;
+        if (dx === 0 && dy === 0 && dz === 0) {
+            return;
+        }
+
+        const graphVersion = this.composition.graph.version;
+        const cachedGroup = this.moveGroupCache;
+        const groupIds =
+            cachedGroup &&
+                cachedGroup.moduleId === module.instanceId &&
+                cachedGroup.graphVersion === graphVersion
+                ? cachedGroup.groupIds
+                : Array.from(
+                    this.composition.graph.getConnectedModuleIds(
+                        module.instanceId
+                    )
+                );
+
+        if (
+            !cachedGroup ||
+            cachedGroup.moduleId !== module.instanceId ||
+            cachedGroup.graphVersion !== graphVersion
+        ) {
+            this.moveGroupCache = {
+                moduleId: module.instanceId,
+                graphVersion,
+                groupIds,
+            };
+        }
 
         groupIds.forEach((id) => {
             const connectedModule = this.composition.modules.get(id);
@@ -153,7 +181,7 @@ export class DesignController {
             module.transform.rotation.z
         );
 
-        this.endInteraction(module);
+        this.endInteraction();
     };
 
     canRotateModule = (module: ModuleInstance): boolean => {
@@ -192,8 +220,12 @@ export class DesignController {
 
         module.setPosition(newPos.x, newPos.y, newPos.z);
 
-        const isOverlapped = this.hasOverlappedWithOtherModule(module);
-        if (isOverlapped) {
+        const overlapping = this.getOverlappingModules(module);
+        const relevantOverlaps = overlapping.filter(
+            (other) => other.instanceId !== result.target.module.instanceId
+        );
+
+        if (relevantOverlaps.length > 0) {
             module.setPosition(
                 previousPosition.x,
                 previousPosition.y,
@@ -227,13 +259,15 @@ export class DesignController {
         if (this.interactionStartSnapshot) return;
 
         this.interactionStartSnapshot = this.captureSnapshot();
+        this.moveGroupCache = null;
     };
 
-    endInteraction = (_movedModule?: ModuleInstance) => {
+    endInteraction = () => {
         if (!this.interactionStartSnapshot) return;
 
         this.trackStateChange(this.interactionStartSnapshot);
         this.interactionStartSnapshot = null;
+        this.moveGroupCache = null;
     };
 
     undo = () => {
@@ -369,10 +403,13 @@ export class DesignController {
             this.composition.modules.set(module.instanceId, module);
         });
 
-        this.composition.graph.connections = snapshot.connections.map((connection) => ({
-            ...connection,
-        }));
+        this.composition.graph.replaceConnections(
+            snapshot.connections.map((connection) => ({
+                ...connection,
+            }))
+        );
         this.composition.setSelectedModule(snapshot.selectedModuleId);
+        this.moveGroupCache = null;
     }
 
     private isSameSnapshot(a: CompositionSnapshot, b: CompositionSnapshot) {
