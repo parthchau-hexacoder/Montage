@@ -2,10 +2,23 @@ import type { ModuleMetrics, NodeDefinition } from "./types";
 
 type BackendModuleImageTuple = [string, string];
 
+export type AreaBreakdown = {
+    bathroom_tile_area?: string | null;
+    exterior_accent_area?: string | null;
+    exterior_finish_area?: string | null;
+    kitchen_casework_area?: string | null;
+    bathroom_casework_area?: string | null;
+    kitchen_countertops_area?: string | null;
+    kitchen_tile_finish_area?: string | null;
+    interior_wall_finish_area?: string | null;
+    interior_floor_finish_area?: string | null;
+};
+
 type BackendModuleLike = {
     id: number | string;
     moduleBuildingId?: string | null;
     name?: string | null;
+    description?: string | null;
     fileName?: string | null;
     glbFile?: string | null;
     moduleImage?: string | null;
@@ -15,16 +28,21 @@ type BackendModuleLike = {
     size?: number | string | null;
     width?: number | string | null;
     length?: number | string | null;
+    height?: number | string | null;
     price?: number | string | null;
     pricePerSqft?: number | string | null;
     unitType?: string | null;
     status?: string | null;
     moduleType?: { name?: string | null } | null;
+    designedBy?: string | null;
+    isPremium?: boolean | null;
+    areaObj?: AreaBreakdown | null;
 };
 
 type ModuleDefinitionParams = {
     id: string;
     name: string;
+    description: string;
     glbPath: string;
     previewImage: string | null;
     metrics: ModuleMetrics;
@@ -37,6 +55,12 @@ type ModuleDefinitionParams = {
     status?: string | null;
     pricePerSqft?: number;
     moduleTypeName?: string | null;
+    designedBy?: string | null;
+    isPremium?: boolean;
+    areaObj?: AreaBreakdown | null;
+    width?: number;
+    length?: number;
+    height?: string | null;
 };
 
 export class ModuleDefinition {
@@ -44,6 +68,7 @@ export class ModuleDefinition {
     readonly backendId: string | null;
     readonly moduleBuildingId: string | null;
     readonly name: string;
+    readonly description: string;
     readonly fileName: string | null;
     readonly glbPath: string;
     readonly previewImage: string | null;
@@ -54,6 +79,12 @@ export class ModuleDefinition {
     readonly unitType: string | null;
     readonly status: string | null;
     readonly moduleTypeName: string | null;
+    readonly designedBy: string | null;
+    readonly isPremium: boolean;
+    readonly areaObj: AreaBreakdown | null;
+    readonly width: number;
+    readonly length: number;
+    readonly height: string | null;
 
     constructor(params: ModuleDefinitionParams | BackendModuleLike) {
         if (isModuleDefinitionParams(params)) {
@@ -61,6 +92,7 @@ export class ModuleDefinition {
             this.backendId = params.backendId ?? null;
             this.moduleBuildingId = params.moduleBuildingId ?? null;
             this.name = params.name;
+            this.description = params.description;
             this.fileName = params.fileName ?? null;
             this.glbPath = params.glbPath;
             this.previewImage = params.previewImage;
@@ -71,6 +103,12 @@ export class ModuleDefinition {
             this.unitType = params.unitType ?? null;
             this.status = params.status ?? null;
             this.moduleTypeName = params.moduleTypeName ?? null;
+            this.designedBy = params.designedBy ?? null;
+            this.isPremium = params.isPremium ?? false;
+            this.areaObj = params.areaObj ?? null;
+            this.width = params.width ?? 0;
+            this.length = params.length ?? 0;
+            this.height = params.height ?? null;
             return;
         }
 
@@ -83,6 +121,7 @@ export class ModuleDefinition {
         this.backendId = coerceNonEmptyString(params.id);
         this.moduleBuildingId = coerceNonEmptyString(params.moduleBuildingId);
         this.name = coerceNonEmptyString(params.name) ?? moduleId;
+        this.description = coerceNonEmptyString(params.description) ?? "";
         this.fileName = coerceNonEmptyString(params.fileName);
         this.glbPath = resolveGlbPath(params.glbFile, this.fileName);
         this.previewImage = resolvePreviewImage(params.moduleImage, params.images);
@@ -97,6 +136,12 @@ export class ModuleDefinition {
         this.unitType = coerceNonEmptyString(params.unitType);
         this.status = coerceNonEmptyString(params.status);
         this.moduleTypeName = coerceNonEmptyString(params.moduleType?.name);
+        this.designedBy = coerceNonEmptyString(params.designedBy);
+        this.isPremium = !!params.isPremium;
+        this.areaObj = params.areaObj ?? null;
+        this.width = toFiniteNumber(params.width);
+        this.length = toFiniteNumber(params.length);
+        this.height = coerceNonEmptyString(params.height);
     }
 }
 

@@ -89,6 +89,34 @@ export class ModuleInstance {
         return this.definition.baseCost;
     }
 
+    get description() {
+        return this.definition.description;
+    }
+
+    get designedBy() {
+        return this.definition.designedBy;
+    }
+
+    get isPremium() {
+        return this.definition.isPremium;
+    }
+
+    get areaObj() {
+        return this.definition.areaObj;
+    }
+
+    get width() {
+        return this.definition.width;
+    }
+
+    get length() {
+        return this.definition.length;
+    }
+
+    get height() {
+        return this.definition.height;
+    }
+
     private updateWorldBounds() {
         if (!this.localBounds) {
             this.worldBounds = null;
