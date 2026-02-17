@@ -29,20 +29,19 @@ export class ModuleManager {
         if (!def) throw new Error("Module definition not found");
 
         const instance = new ModuleInstance(def);
-        this.composition.addModule(instance);
-
-        const disposer = reaction(
-            () => instance.localBounds,
-            (bounds) => {
-                if (bounds) {
-                    this.overlapManager.resolveModuleOverlapByOffset(instance);
-                }
-            },
-            { fireImmediately: true }
-        );
-        this.disposers.set(instance.instanceId, disposer);
+        this.attachModule(instance, { enableOverlapResolution: true });
 
         return instance;
+    }
+
+    replaceModules(modules: ModuleInstance[]) {
+        this.disposeAllModuleReactions();
+        this.composition.modules.clear();
+
+        modules.forEach((module) => {
+            // History restore should preserve exact snapshot transforms.
+            this.attachModule(module, { enableOverlapResolution: false });
+        });
     }
 
     removeModule(instanceId: string) {
@@ -74,5 +73,43 @@ export class ModuleManager {
         epsilon = 0
     ): boolean {
         return this.overlapManager.hasOverlappedWithOtherModule(module, epsilon);
+    }
+
+    private attachModule(
+        instance: ModuleInstance,
+        options: { enableOverlapResolution: boolean }
+    ) {
+        const existingDisposer = this.disposers.get(instance.instanceId);
+        if (existingDisposer) {
+            existingDisposer();
+        }
+
+        this.composition.addModule(instance);
+        if (options.enableOverlapResolution) {
+            this.disposers.set(
+                instance.instanceId,
+                this.bindModuleOverlapResolution(instance)
+            );
+            return;
+        }
+
+        this.disposers.delete(instance.instanceId);
+    }
+
+    private bindModuleOverlapResolution(instance: ModuleInstance): IReactionDisposer {
+        return reaction(
+            () => instance.localBounds,
+            (bounds) => {
+                if (bounds) {
+                    this.overlapManager.resolveModuleOverlapByOffset(instance);
+                }
+            },
+            { fireImmediately: true }
+        );
+    }
+
+    private disposeAllModuleReactions() {
+        this.disposers.forEach((disposer) => disposer());
+        this.disposers.clear();
     }
 }

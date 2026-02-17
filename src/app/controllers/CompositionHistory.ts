@@ -1,4 +1,5 @@
 import type { ConnectionRecord } from "../../core/composition/ConnectionGraph";
+import { makeAutoObservable } from "mobx";
 import { BuildingComposition } from "../../core/composition/BuildingComposition";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import { NodeInstance } from "../../core/composition/NodeInstance";
@@ -33,6 +34,7 @@ export class CompositionHistory {
   constructor(composition: BuildingComposition, moduleManager: ModuleManager) {
     this.composition = composition;
     this.moduleManager = moduleManager;
+    makeAutoObservable(this, {}, { autoBind: true });
   }
 
   get canUndo() {
@@ -128,8 +130,7 @@ export class CompositionHistory {
     const definitions = new Map(
       this.moduleManager.getDefinitions().map((definition) => [definition.id, definition])
     );
-
-    this.composition.modules.clear();
+    const restoredModules: ModuleInstance[] = [];
 
     snapshot.modules.forEach((moduleSnapshot) => {
       const definition = definitions.get(moduleSnapshot.definitionId);
@@ -165,8 +166,10 @@ export class CompositionHistory {
         return node;
       });
 
-      this.composition.modules.set(module.instanceId, module);
+      restoredModules.push(module);
     });
+
+    this.moduleManager.replaceModules(restoredModules);
 
     this.composition.graph.replaceConnections(
       snapshot.connections.map((connection) => ({

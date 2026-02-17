@@ -68,8 +68,8 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
         <primitive object={moduleScene} visible={rotationPreviewY === null} />
         {isSelected && selectionOverlay && interactive && (
           <group>
-            <lineSegments geometry={selectionOverlay.geometry}>
-              <lineBasicMaterial color="#ffd400" />
+            <lineSegments geometry={selectionOverlay.geometry} renderOrder={20}>
+              <lineBasicMaterial color="#ffd400" depthTest={false} />
             </lineSegments>
             {selectionOverlay.corners.map((corner, index) => (
               <mesh
@@ -77,6 +77,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
                 {...rotateHandlers}
                 position={corner}
                 rotation={[-Math.PI / 2, 0, 0]}
+                renderOrder={21}
                 onPointerDown={(event: ThreeEvent<PointerEvent>) => {
                   event.stopPropagation();
                   markRotationPointerDown();
@@ -88,7 +89,12 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
                 }}
               >
                 <circleGeometry args={[0.1, 24]} />
-                <meshBasicMaterial color={canRotate ? "#fff" : "#9e9e9e"} />
+                <meshBasicMaterial
+                  color={canRotate ? "#ffffff" : "#f5c542"}
+                  depthTest={false}
+                  transparent
+                  opacity={canRotate ? 1 : 0.9}
+                />
               </mesh>
             ))}
           </group>
