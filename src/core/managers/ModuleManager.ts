@@ -20,6 +20,10 @@ export class ModuleManager {
         this.definitions.set(def.id, def);
     }
 
+    clearDefinitions() {
+        this.definitions.clear();
+    }
+
     createModule(typeId: string) {
         const def = this.definitions.get(typeId);
         if (!def) throw new Error("Module definition not found");

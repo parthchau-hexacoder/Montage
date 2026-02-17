@@ -8,6 +8,7 @@ import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import { NodeInstance } from "../../core/composition/NodeInstance";
 import type { ConnectionRecord } from "../../core/composition/ConnectionGraph";
 import type { Bounds3, NodeDefinition, Transform } from "../../core/composition/types";
+import type { BackendModule } from "../models/backendModule";
 
 type ModuleSnapshot = {
     instanceId: string;
@@ -82,6 +83,16 @@ export class DesignController {
         this.moduleManager.registerDefinition(dwelling);
         this.moduleManager.registerDefinition(annex);
         this.moduleManager.registerDefinition(lifestyle);
+    }
+
+    initializeFromBackendModules(modules: BackendModule[]) {
+        this.moduleManager.clearDefinitions();
+
+        modules
+            .map((module) => new ModuleDefinition(module))
+            .forEach((definition) => {
+                this.moduleManager.registerDefinition(definition);
+            });
     }
 
     get canUndo() {

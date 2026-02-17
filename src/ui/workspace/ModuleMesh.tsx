@@ -114,7 +114,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
   }, [moduleScene, interactive, freeNodeIdsSet]);
 
   useEffect(() => {
-    if (!interactive) return;
+    if (!interactive) return; 
 
     applyPlan2DStyle(ghostScene, {
       enabled: interactive,
@@ -262,7 +262,7 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
         ]}
       >
         <primitive object={moduleScene} visible={rotationPreviewY === null} />
-        {isSelected && selectionOverlay && (
+        {isSelected && selectionOverlay && interactive && (
           <group>
             <lineSegments geometry={selectionOverlay.geometry}>
               <lineBasicMaterial color="#ffd400" />
