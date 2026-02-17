@@ -21,16 +21,24 @@ export async function fetchBackendModules(): Promise<BackendModule[]> {
 
 function buildModulesUrl() {
   const explicitUrl = (import.meta.env.VITE_MODULES_API_URL as string | undefined)?.trim();
-  if (explicitUrl) {
+  if (explicitUrl && !isInsecureHttpUrlOnHttpsPage(explicitUrl)) {
     return ensureModulesPath(explicitUrl);
   }
 
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-  if (!baseUrl) {
-    return "/modules";
+  if (!baseUrl || isInsecureHttpUrlOnHttpsPage(baseUrl)) {
+    return "/api/modules";
   }
 
   return `${baseUrl.replace(/\/+$/, "")}/modules`;
+}
+
+function isInsecureHttpUrlOnHttpsPage(url: string) {
+  if (typeof window === "undefined" || window.location.protocol !== "https:") {
+    return false;
+  }
+
+  return /^http:\/\//i.test(url);
 }
 
 function extractModules(payload: ModulesApiResponse): BackendModule[] {
