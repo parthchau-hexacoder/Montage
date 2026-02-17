@@ -12,9 +12,11 @@ import { fetchBackendModules } from "../api/modulesApi";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
-const SNAP_COMMIT_DISTANCE = SNAP_THRESHOLD;
-const MAGNET_MIN_STRENGTH = 0.25;
-const MAGNET_MAX_STRENGTH = 0.75;
+const SNAP_LOCK_DISTANCE = 0.2;
+const SNAP_COMMIT_DISTANCE = SNAP_LOCK_DISTANCE;
+const MAGNET_MIN_STRENGTH = 0.2;
+const MAGNET_MAX_STRENGTH = 0.92;
+const SNAP_OVERLAP_EPSILON = 0.01;
 const DRAG_DETACH_DISTANCE = 0.6;
 
 export class DesignController {
@@ -191,55 +193,72 @@ export class DesignController {
         });
     };
 
-    trySnap = (module: ModuleInstance) => {
-        const result = this.snapManager.findSnapTarget(module);
+    trySnap = (
+        module: ModuleInstance,
+        options: { commit?: boolean } = {}
+    ) => {
+        const candidates = this.snapManager.findSnapTargets(module);
 
-        if (!result) {
+        if (candidates.length === 0) {
             return;
         }
 
-        const previousPosition = { ...module.transform.position };
-        const newPos = this.snapManager.computeSnapTransform(
-            module,
-            result.sourceWorldPosition,
-            result.targetWorldPosition
-        );
+        const commit = !!options.commit;
+        const startPosition = { ...module.transform.position };
 
-        const offsetX = newPos.x - module.transform.position.x;
-        const offsetY = newPos.y - module.transform.position.y;
-        const offsetZ = newPos.z - module.transform.position.z;
-        const shouldCommitSnap = result.distance <= SNAP_COMMIT_DISTANCE;
+        for (const candidate of candidates) {
+            const snapPosition = this.snapManager.computeSnapTransform(
+                module,
+                candidate.sourceWorldPosition,
+                candidate.targetWorldPosition
+            );
 
-        if (shouldCommitSnap) {
-            module.setPosition(newPos.x, newPos.y, newPos.z);
-        } else {
-            const normalizedDistance = Math.min(result.distance / SNAP_THRESHOLD, 1);
-            const magnetStrength =
-                MAGNET_MIN_STRENGTH +
-                (1 - normalizedDistance) * (MAGNET_MAX_STRENGTH - MAGNET_MIN_STRENGTH);
+            const offsetX = snapPosition.x - startPosition.x;
+            const offsetY = snapPosition.y - startPosition.y;
+            const offsetZ = snapPosition.z - startPosition.z;
+            const withinLockDistance = candidate.distance <= SNAP_LOCK_DISTANCE;
+            const normalizedDistance = Math.min(
+                candidate.distance / SNAP_THRESHOLD,
+                1
+            );
+            const attraction = 1 - normalizedDistance;
+            const magnetStrength = withinLockDistance
+                ? 1
+                : MAGNET_MIN_STRENGTH +
+                attraction * attraction * (MAGNET_MAX_STRENGTH - MAGNET_MIN_STRENGTH);
 
             module.setPosition(
-                module.transform.position.x + offsetX * magnetStrength,
-                module.transform.position.y + offsetY * magnetStrength,
-                module.transform.position.z + offsetZ * magnetStrength
+                startPosition.x + offsetX * magnetStrength,
+                startPosition.y + offsetY * magnetStrength,
+                startPosition.z + offsetZ * magnetStrength
             );
-        }
 
-        const overlapping = this.getOverlappingModules(module, 0.01);
+            const overlapping = this.getOverlappingModules(module, SNAP_OVERLAP_EPSILON);
 
-        if (overlapping.length > 0) {
-            module.setPosition(
-                previousPosition.x,
-                previousPosition.y,
-                previousPosition.z
-            );
+            if (overlapping.length > 0) {
+                module.setPosition(startPosition.x, startPosition.y, startPosition.z);
+                continue;
+            }
+
+            if (commit && candidate.distance <= SNAP_COMMIT_DISTANCE) {
+                module.setPosition(
+                    snapPosition.x,
+                    snapPosition.y,
+                    snapPosition.z
+                );
+
+                if (this.getOverlappingModules(module, SNAP_OVERLAP_EPSILON).length > 0) {
+                    module.setPosition(startPosition.x, startPosition.y, startPosition.z);
+                    continue;
+                }
+
+                this.nodeManager.markOccupied(candidate.source, candidate.target);
+            }
+
             return;
         }
 
-        if (shouldCommitSnap) {
-            this.nodeManager.markOccupied(result.source, result.target);
-            return;
-        }
+        module.setPosition(startPosition.x, startPosition.y, startPosition.z);
     };
 
     calculateBoundingBox = (module: ModuleInstance): Bounds3 | null => {

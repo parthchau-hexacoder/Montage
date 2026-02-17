@@ -22,7 +22,37 @@ export class NodeManager {
         return nodes;
     }
 
-    markOccupied(a: NodeInstance, b: NodeInstance) {
+    markOccupied(a: NodeInstance, b: NodeInstance): boolean {
+        if (a === b) {
+            return false;
+        }
+
+        if (a.module.instanceId === b.module.instanceId) {
+            return false;
+        }
+
+        if (a.occupied || b.occupied) {
+            return false;
+        }
+
+        const alreadyConnected = this.composition.graph.connections.some(
+            (connection) =>
+                (connection.fromModuleId === a.module.instanceId &&
+                    connection.fromNodeId === a.definition.id &&
+                    connection.toModuleId === b.module.instanceId &&
+                    connection.toNodeId === b.definition.id) ||
+                (connection.fromModuleId === b.module.instanceId &&
+                    connection.fromNodeId === b.definition.id &&
+                    connection.toModuleId === a.module.instanceId &&
+                    connection.toNodeId === a.definition.id)
+        );
+
+        if (alreadyConnected) {
+            a.occupied = true;
+            b.occupied = true;
+            return false;
+        }
+
         a.occupied = true;
         b.occupied = true;
 
@@ -32,6 +62,8 @@ export class NodeManager {
             toModuleId: b.module.instanceId,
             toNodeId: b.definition.id,
         });
+
+        return true;
     }
 
     disjointModule(moduleId: string): number {

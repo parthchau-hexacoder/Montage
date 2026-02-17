@@ -4,9 +4,10 @@ import { ModuleInstance } from "../composition/ModuleInstance";
 import { Euler, Quaternion, Vector3 } from "three";
 
 
-export const SNAP_THRESHOLD = 0.3;
+export const SNAP_THRESHOLD = 0.45;
 const SNAP_THRESHOLD_SQ = SNAP_THRESHOLD * SNAP_THRESHOLD;
-const PARALLEL_DOT_TOLERANCE = 1e-2;
+const PARALLEL_DOT_TOLERANCE = 0.2;
+const MIN_FACING_DOT = -(1 - PARALLEL_DOT_TOLERANCE);
 
 type RuntimeNode = {
     node: NodeInstance;
@@ -36,15 +37,19 @@ export class SnapManager {
     }
 
     findSnapTarget(movingModule: ModuleInstance): SnapTarget | null {
+        return this.findSnapTargets(movingModule)[0] ?? null;
+    }
+
+    findSnapTargets(movingModule: ModuleInstance): SnapTarget[] {
         const freeNodes = this.nodeManager.getAllFreeNodes();
         const moduleQuaternionCache = new Map<string, Quaternion>();
         const sourceRuntime: RuntimeNode[] = [];
         const targetRuntime: RuntimeNode[] = [];
-        let bestMatch: { source: RuntimeNode; target: RuntimeNode } | null = null;
-        let bestDistanceSq = Number.POSITIVE_INFINITY;
-        let parallelRejected = 0;
-        let distanceRejected = 0;
-        let worseThanBestRejected = 0;
+        const candidates: Array<{
+            source: RuntimeNode;
+            target: RuntimeNode;
+            distanceSq: number;
+        }> = [];
 
         for (const sourceNode of movingModule.nodes) {
             if (sourceNode.occupied) continue;
@@ -64,49 +69,41 @@ export class SnapManager {
 
         for (const source of sourceRuntime) {
             for (const target of targetRuntime) {
-                const dot = source.direction.dot(target.direction);
+                if (!this.areNodesCompatible(source.node, target.node)) {
+                    continue;
+                }
+
+                if (!this.areDirectionsFacingEachOther(source, target)) {
+                    continue;
+                }
+
                 const distSq = source.position.distanceToSquared(target.position);
 
-                // Connectors should face each other, not point in the same direction.
-                if (dot > -(1 - PARALLEL_DOT_TOLERANCE)) {
-                    parallelRejected += 1;
+                if (distSq > SNAP_THRESHOLD_SQ) {
                     continue;
                 }
 
-                if (distSq >= SNAP_THRESHOLD_SQ) {
-                    distanceRejected += 1;
-                    continue;
-                }
-
-                if (distSq >= bestDistanceSq) {
-                    worseThanBestRejected += 1;
-                    continue;
-                }
-
-                bestDistanceSq = distSq;
-                bestMatch = { source, target };
+                candidates.push({ source, target, distanceSq: distSq });
             }
         }
 
-        if (!bestMatch) {
-            return null;
-        }
+        candidates.sort((a, b) => a.distanceSq - b.distanceSq);
 
-        return {
-            source: bestMatch.source.node,
-            target: bestMatch.target.node,
-            distance: Math.sqrt(bestDistanceSq),
+        return candidates.map((candidate) => ({
+            source: candidate.source.node,
+            target: candidate.target.node,
+            distance: Math.sqrt(candidate.distanceSq),
             sourceWorldPosition: {
-                x: bestMatch.source.position.x,
-                y: bestMatch.source.position.y,
-                z: bestMatch.source.position.z,
+                x: candidate.source.position.x,
+                y: candidate.source.position.y,
+                z: candidate.source.position.z,
             },
             targetWorldPosition: {
-                x: bestMatch.target.position.x,
-                y: bestMatch.target.position.y,
-                z: bestMatch.target.position.z,
+                x: candidate.target.position.x,
+                y: candidate.target.position.y,
+                z: candidate.target.position.z,
             },
-        };
+        }));
     }
 
     computeSnapTransform(
@@ -290,7 +287,19 @@ export class SnapManager {
             axis = "minZ";
         }
         if (distanceMaxZ < minDistance) {
+            minDistance = distanceMaxZ;
             axis = "maxZ";
+        }
+
+        const width = Math.max(bounds.max.x - bounds.min.x, 0);
+        const depth = Math.max(bounds.max.z - bounds.min.z, 0);
+        const faceEpsilonX = Math.max(width * 0.2, 0.05);
+        const faceEpsilonZ = Math.max(depth * 0.2, 0.05);
+        const isXAxis = axis === "minX" || axis === "maxX";
+        const maxDistanceToFace = isXAxis ? faceEpsilonX : faceEpsilonZ;
+
+        if (minDistance > maxDistanceToFace) {
+            return false;
         }
 
         if (axis === "minX") out.set(-1, 0, 0);
@@ -313,6 +322,17 @@ export class SnapManager {
         );
         _tmpWorldQuaternion.copy(moduleQuaternion).multiply(nodeQuaternion);
         out.set(0, 0, 1).applyQuaternion(_tmpWorldQuaternion).normalize();
+    }
+
+    private areNodesCompatible(a: NodeInstance, b: NodeInstance): boolean {
+        return a.isCompatibleWith(b) && b.isCompatibleWith(a);
+    }
+
+    private areDirectionsFacingEachOther(
+        source: RuntimeNode,
+        target: RuntimeNode
+    ): boolean {
+        return source.direction.dot(target.direction) <= MIN_FACING_DOT;
     }
 }
 

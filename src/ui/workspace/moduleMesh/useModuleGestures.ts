@@ -64,7 +64,7 @@ export function useModuleGestures({
       const dz = (my / size.height) * viewport.height;
 
       moveModuleGroup(module, start.x + dx, start.y, start.z + dz);
-      trySnap(module);
+      trySnap(module, { commit: last });
 
       if (last) {
         endInteraction();
