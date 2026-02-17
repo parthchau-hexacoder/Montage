@@ -3,86 +3,34 @@ import { BuildingComposition } from "../../core/composition/BuildingComposition"
 import { ModuleManager } from "../../core/managers/ModuleManager";
 import { ModuleDefinition } from "../../core/composition/ModuleDefinition";
 import { NodeManager } from "../../core/managers/NodeManager";
-import { SnapManager } from "../../core/managers/SnapManager";
+import { SNAP_THRESHOLD, SnapManager } from "../../core/managers/SnapManager";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
-import { NodeInstance } from "../../core/composition/NodeInstance";
-import type { ConnectionRecord } from "../../core/composition/ConnectionGraph";
-import type { Bounds3, NodeDefinition, Transform } from "../../core/composition/types";
+import type { Bounds3 } from "../../core/composition/types";
 import type { BackendModule } from "../models/backendModule";
-
-type ModuleSnapshot = {
-    instanceId: string;
-    definitionId: string;
-    transform: Transform;
-    nodes: Array<{
-        definition: NodeDefinition;
-        occupied: boolean;
-    }>;
-};
-
-type CompositionSnapshot = {
-    modules: ModuleSnapshot[];
-    connections: ConnectionRecord[];
-    selectedModuleId: string | null;
-};
-
-const HISTORY_LIMIT = 100;
+import { CompositionHistory } from "./CompositionHistory";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
+const SNAP_COMMIT_DISTANCE = 0.25;
+const MAGNET_MIN_STRENGTH = 0.25;
+const MAGNET_MAX_STRENGTH = 0.75;
+const DRAG_DETACH_DISTANCE = 0.6;
 
 export class DesignController {
     composition: BuildingComposition;
     moduleManager: ModuleManager;
     nodeManager: NodeManager;
     snapManager: SnapManager;
-    private undoStack: CompositionSnapshot[] = [];
-    private redoStack: CompositionSnapshot[] = [];
-    private interactionStartSnapshot: CompositionSnapshot | null = null;
-    private moveGroupCache:
-        | { moduleId: string; graphVersion: number; groupIds: string[] }
-        | null = null;
+    private history: CompositionHistory;
 
     constructor() {
         this.composition = new BuildingComposition();
         this.moduleManager = new ModuleManager(this.composition);
         this.nodeManager = new NodeManager(this.composition);
         this.snapManager = new SnapManager(this.nodeManager);
+        this.history = new CompositionHistory(this.composition, this.moduleManager);
 
         makeAutoObservable(this, {}, { autoBind: true });
-    }
-
-    initializeDefaults() {
-        const dwelling = new ModuleDefinition({
-            id: "dwelling",
-            name: "Dwelling",
-            glbPath: "assets/Dwelling_tag.glb",
-            metrics: { beds: 1, baths: 1, sqft: 900 },
-            baseCost: 120000,
-            nodes: [],
-        });
-
-        const annex = new ModuleDefinition({
-            id: "annex",
-            name: "Annex",
-            glbPath: "assets/Annex_tag.glb",
-            metrics: { beds: 0, baths: 0.5, sqft: 250 },
-            baseCost: 60000,
-            nodes: [],
-        });
-
-        const lifestyle = new ModuleDefinition({
-            id: "lifestyle",
-            name: "Lifestyle",
-            glbPath: "assets/Lifestyle_tag.glb",
-            metrics: { beds: 0, baths: 0.5, sqft: 250 },
-            baseCost: 60000,
-            nodes: [],
-        });
-
-        this.moduleManager.registerDefinition(dwelling);
-        this.moduleManager.registerDefinition(annex);
-        this.moduleManager.registerDefinition(lifestyle);
     }
 
     initializeFromBackendModules(modules: BackendModule[]) {
@@ -96,11 +44,11 @@ export class DesignController {
     }
 
     get canUndo() {
-        return this.undoStack.length > 0;
+        return this.history.canUndo;
     }
 
     get canRedo() {
-        return this.redoStack.length > 0;
+        return this.history.canRedo;
     }
 
     get availableModuleDefinitions() {
@@ -108,19 +56,18 @@ export class DesignController {
     }
 
     addModule = (typeId: string) => {
-        const before = this.captureSnapshot();
-        const module = this.moduleManager.createModule(typeId);
-        this.composition.setSelectedModule(module.instanceId);
-        this.trackStateChange(before);
-
-        return module;
+        return this.history.recordChange(() => {
+            const module = this.moduleManager.createModule(typeId);
+            this.composition.setSelectedModule(module.instanceId);
+            return module;
+        });
     };
 
     removeModule = (id: string) => {
-        const before = this.captureSnapshot();
-        this.nodeManager.disjointModule(id);
-        this.moduleManager.removeModule(id);
-        this.trackStateChange(before);
+        this.history.recordChange(() => {
+            this.nodeManager.disjointModule(id);
+            this.moduleManager.removeModule(id);
+        });
     };
 
     selectModule = (moduleId: string | null) => {
@@ -139,43 +86,23 @@ export class DesignController {
         if (dx === 0 && dy === 0 && dz === 0) {
             return;
         }
+        const activeConnections =
+            this.composition.graph.getConnectionsForModule(module.instanceId);
+        if (activeConnections.length > 0) {
+            const pullDistanceSq = dx * dx + dy * dy + dz * dz;
 
-        const graphVersion = this.composition.graph.version;
-        const cachedGroup = this.moveGroupCache;
-        const groupIds =
-            cachedGroup &&
-                cachedGroup.moduleId === module.instanceId &&
-                cachedGroup.graphVersion === graphVersion
-                ? cachedGroup.groupIds
-                : Array.from(
-                    this.composition.graph.getConnectedModuleIds(
-                        module.instanceId
-                    )
-                );
+            if (pullDistanceSq < DRAG_DETACH_DISTANCE * DRAG_DETACH_DISTANCE) {
+                return;
+            }
 
-        if (
-            !cachedGroup ||
-            cachedGroup.moduleId !== module.instanceId ||
-            cachedGroup.graphVersion !== graphVersion
-        ) {
-            this.moveGroupCache = {
-                moduleId: module.instanceId,
-                graphVersion,
-                groupIds,
-            };
+            this.nodeManager.disjointModule(module.instanceId);
         }
 
-        groupIds.forEach((id) => {
-            const connectedModule = this.composition.modules.get(id);
-
-            if (!connectedModule) return;
-
-            connectedModule.setPosition(
-                connectedModule.transform.position.x + dx,
-                connectedModule.transform.position.y + dy,
-                connectedModule.transform.position.z + dz
-            );
-        });
+        module.setPosition(
+            module.transform.position.x + dx,
+            module.transform.position.y + dy,
+            module.transform.position.z + dz
+        );
     };
 
     rotateModuleQuarter = (module: ModuleInstance, direction: "cw" | "ccw") => {
@@ -204,17 +131,16 @@ export class DesignController {
 
         if (!selectedModuleId) return;
 
-        const before = this.captureSnapshot();
-        const removedConnections = this.nodeManager.disjointModule(selectedModuleId);
+        this.history.recordChange(() => {
+            const removedConnections = this.nodeManager.disjointModule(selectedModuleId);
 
-        if (removedConnections > 0) {
-            const module = this.composition.modules.get(selectedModuleId);
-            if (module) {
-                this.offsetDisjointedModule(module);
+            if (removedConnections > 0) {
+                const module = this.composition.modules.get(selectedModuleId);
+                if (module) {
+                    this.offsetDisjointedModule(module);
+                }
             }
-        }
-
-        this.trackStateChange(before);
+        });
     };
 
     trySnap = (module: ModuleInstance) => {
@@ -229,7 +155,25 @@ export class DesignController {
             result.target
         );
 
-        module.setPosition(newPos.x, newPos.y, newPos.z);
+        const offsetX = newPos.x - module.transform.position.x;
+        const offsetY = newPos.y - module.transform.position.y;
+        const offsetZ = newPos.z - module.transform.position.z;
+        const shouldCommitSnap = result.distance <= SNAP_COMMIT_DISTANCE;
+
+        if (shouldCommitSnap) {
+            module.setPosition(newPos.x, newPos.y, newPos.z);
+        } else {
+            const normalizedDistance = Math.min(result.distance / SNAP_THRESHOLD, 1);
+            const magnetStrength =
+                MAGNET_MIN_STRENGTH +
+                (1 - normalizedDistance) * (MAGNET_MAX_STRENGTH - MAGNET_MIN_STRENGTH);
+
+            module.setPosition(
+                module.transform.position.x + offsetX * magnetStrength,
+                module.transform.position.y + offsetY * magnetStrength,
+                module.transform.position.z + offsetZ * magnetStrength
+            );
+        }
 
         const overlapping = this.getOverlappingModules(module);
         const relevantOverlaps = overlapping.filter(
@@ -245,7 +189,9 @@ export class DesignController {
             return;
         }
 
-        this.nodeManager.markOccupied(result.source, result.target);
+        if (shouldCommitSnap) {
+            this.nodeManager.markOccupied(result.source, result.target);
+        }
     };
 
     calculateBoundingBox = (module: ModuleInstance): Bounds3 | null => {
@@ -267,53 +213,20 @@ export class DesignController {
     };
 
     beginInteraction = () => {
-        if (this.interactionStartSnapshot) return;
-
-        this.interactionStartSnapshot = this.captureSnapshot();
-        this.moveGroupCache = null;
+        this.history.beginInteraction();
     };
 
     endInteraction = () => {
-        if (!this.interactionStartSnapshot) return;
-
-        this.trackStateChange(this.interactionStartSnapshot);
-        this.interactionStartSnapshot = null;
-        this.moveGroupCache = null;
+        this.history.endInteraction();
     };
 
     undo = () => {
-        const previous = this.undoStack.pop();
-        if (!previous) return;
-
-        const current = this.captureSnapshot();
-        this.redoStack.push(current);
-
-        this.restoreSnapshot(previous);
+        this.history.undo();
     };
 
     redo = () => {
-        const next = this.redoStack.pop();
-        if (!next) return;
-
-        const current = this.captureSnapshot();
-        this.undoStack.push(current);
-
-        this.restoreSnapshot(next);
+        this.history.redo();
     };
-
-    private trackStateChange(before = this.captureSnapshot()) {
-        const current = this.captureSnapshot();
-
-        if (this.isSameSnapshot(before, current)) {
-            return;
-        }
-
-        this.undoStack.push(before);
-        if (this.undoStack.length > HISTORY_LIMIT) {
-            this.undoStack.shift();
-        }
-        this.redoStack = [];
-    }
 
     private offsetDisjointedModule(module: ModuleInstance) {
         const start = { ...module.transform.position };
@@ -337,94 +250,6 @@ export class DesignController {
                 }
             }
         }
-    }
-
-    private captureSnapshot(): CompositionSnapshot {
-        const modules = Array.from(this.composition.modules.values())
-            .map((module) => ({
-                instanceId: module.instanceId,
-                definitionId: module.definition.id,
-                transform: {
-                    position: { ...module.transform.position },
-                    rotation: { ...module.transform.rotation },
-                },
-                nodes: module.nodes.map((node) => ({
-                    definition: {
-                        id: node.definition.id,
-                        type: node.definition.type,
-                        position: { ...node.definition.position },
-                        rotation: { ...node.definition.rotation },
-                        compatibleWith: [...node.definition.compatibleWith],
-                    },
-                    occupied: node.occupied,
-                })),
-            }))
-            .sort((a, b) => a.instanceId.localeCompare(b.instanceId));
-
-        return {
-            modules,
-            connections: this.composition.graph.connections.map((connection) => ({
-                ...connection,
-            })),
-            selectedModuleId: this.composition.selectedModuleId,
-        };
-    }
-
-    private restoreSnapshot(snapshot: CompositionSnapshot) {
-        const definitions = new Map(
-            this.moduleManager.getDefinitions().map((definition) => [definition.id, definition])
-        );
-
-        this.composition.modules.clear();
-
-        snapshot.modules.forEach((moduleSnapshot) => {
-            const definition = definitions.get(moduleSnapshot.definitionId);
-            if (!definition) return;
-
-            const module = new ModuleInstance(definition);
-            (module as unknown as { instanceId: string }).instanceId = moduleSnapshot.instanceId;
-
-            module.setPosition(
-                moduleSnapshot.transform.position.x,
-                moduleSnapshot.transform.position.y,
-                moduleSnapshot.transform.position.z
-            );
-            module.setRotation(
-                moduleSnapshot.transform.rotation.x,
-                moduleSnapshot.transform.rotation.y,
-                moduleSnapshot.transform.rotation.z
-            );
-
-            module.nodes = moduleSnapshot.nodes.map((nodeSnapshot) => {
-                const node = new NodeInstance(
-                    {
-                        ...nodeSnapshot.definition,
-                        position: { ...nodeSnapshot.definition.position },
-                        rotation: { ...nodeSnapshot.definition.rotation },
-                        compatibleWith: [...nodeSnapshot.definition.compatibleWith],
-                    },
-                    module
-                );
-
-                node.occupied = nodeSnapshot.occupied;
-
-                return node;
-            });
-
-            this.composition.modules.set(module.instanceId, module);
-        });
-
-        this.composition.graph.replaceConnections(
-            snapshot.connections.map((connection) => ({
-                ...connection,
-            }))
-        );
-        this.composition.setSelectedModule(snapshot.selectedModuleId);
-        this.moveGroupCache = null;
-    }
-
-    private isSameSnapshot(a: CompositionSnapshot, b: CompositionSnapshot) {
-        return JSON.stringify(a) === JSON.stringify(b);
     }
 
 }
