@@ -20,12 +20,12 @@ export async function fetchBackendModules(): Promise<BackendModule[]> {
 }
 
 function buildModulesUrl() {
-  const explicitUrl = import.meta.env.VITE_MODULES_API_URL as string | undefined;
+  const explicitUrl = (import.meta.env.VITE_MODULES_API_URL as string | undefined)?.trim();
   if (explicitUrl) {
-    return explicitUrl;
+    return ensureModulesPath(explicitUrl);
   }
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
   if (!baseUrl) {
     return "/modules";
   }
@@ -68,4 +68,23 @@ function isModuleEnvelope(value: unknown): value is BackendModuleEnvelope {
   }
 
   return "module" in value;
+}
+
+function ensureModulesPath(url: string) {
+  const normalized = url.replace(/\/+$/, "");
+  const modulesSuffix = "/modules";
+
+  try {
+    const parsed = new URL(normalized);
+    if (!parsed.pathname || parsed.pathname === "/") {
+      parsed.pathname = modulesSuffix;
+      return parsed.toString();
+    }
+
+    return parsed.toString();
+  } catch {
+    return normalized.endsWith(modulesSuffix)
+      ? normalized
+      : `${normalized}${modulesSuffix}`;
+  }
 }
