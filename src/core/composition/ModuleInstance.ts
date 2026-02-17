@@ -166,10 +166,11 @@ function parseNodeMarker(
     if (name.startsWith("Node")) {
         const parts = name.split("_");
 
-        if (parts.length >= 3) {
-            const typeToken = parts[1].toUpperCase();
+        if (parts.length >= 2) {
+            const hasType = parts.length >= 3;
+            const typeToken = hasType ? parts[1].toUpperCase() : "WALL";
             const type = isNodeType(typeToken) ? typeToken : "WALL";
-            const id = parts.slice(2).join("_");
+            const id = hasType ? parts.slice(2).join("_") : parts.slice(1).join("_");
 
             if (id) {
                 return { type, id };

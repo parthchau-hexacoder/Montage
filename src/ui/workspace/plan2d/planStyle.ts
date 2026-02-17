@@ -157,8 +157,9 @@ export function parseNodeMarkerId(name: string): string | null {
   if (name.startsWith("Node")) {
     const parts = name.split("_");
 
-    if (parts.length >= 3) {
-      const id = parts.slice(2).join("_");
+    if (parts.length >= 2) {
+      const hasType = parts.length >= 3;
+      const id = hasType ? parts.slice(2).join("_") : parts.slice(1).join("_");
       return id || null;
     }
   }
