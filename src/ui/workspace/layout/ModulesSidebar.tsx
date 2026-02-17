@@ -1,7 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../../app/providers/DesignProvider";
 import { SidebarViewToggle } from "./sidebar/components/SidebarViewToggle";
-import { ModulePreview3D } from "./sidebar/components/ModulePreview3D";
 import type { SidebarViewMode } from "./sidebar/types";
 
 type Props = {
@@ -10,7 +9,13 @@ type Props = {
 };
 
 export const ModulesSidebar = observer(({ viewMode, onChangeViewMode }: Props) => {
-  const { addModule, availableModuleDefinitions } = useDesign();
+  const {
+    addModule,
+    availableModuleDefinitions,
+    isModulesLoading,
+    modulesLoadError,
+    loadModulesFromBackend,
+  } = useDesign();
 
   return (
     <aside className="flex h-full w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-[#f5f5f8] p-4">
@@ -20,6 +25,33 @@ export const ModulesSidebar = observer(({ viewMode, onChangeViewMode }: Props) =
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        {isModulesLoading && availableModuleDefinitions.length === 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white px-3 py-4 text-sm text-gray-600">
+            Loading modules...
+          </div>
+        )}
+
+        {!isModulesLoading && modulesLoadError && availableModuleDefinitions.length === 0 && (
+          <div className="space-y-3 rounded-lg border border-red-200 bg-white px-3 py-4">
+            <p className="text-sm text-red-700">{modulesLoadError}</p>
+            <button
+              type="button"
+              className="rounded border border-red-300 px-2 py-1 text-[11px] font-semibold text-red-700"
+              onClick={() => loadModulesFromBackend(true)}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!isModulesLoading &&
+          !modulesLoadError &&
+          availableModuleDefinitions.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-4 text-sm text-gray-600">
+              No modules found.
+            </div>
+          )}
+
         {viewMode === "grid" ? (
           <div className="space-y-3">
             {availableModuleDefinitions.map((definition, index) => (
@@ -27,7 +59,18 @@ export const ModulesSidebar = observer(({ viewMode, onChangeViewMode }: Props) =
                 key={definition.id}
                 className="rounded-lg border border-gray-200 bg-white p-2"
               >
-                <ModulePreview3D glbPath={definition.glbPath} />
+                {definition.previewImage ? (
+                  <img
+                    src={definition.previewImage}
+                    alt={definition.name}
+                    className="h-28 w-full rounded-md border border-gray-200 object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-28 w-full items-center justify-center rounded-md border border-gray-200 bg-gray-100 text-xs font-medium text-gray-500">
+                    No preview image
+                  </div>
+                )}
                 <div className="mt-2 flex items-center justify-between px-1">
                   <div className="min-w-0 text-xs font-semibold text-gray-700">
                     {definition.name}

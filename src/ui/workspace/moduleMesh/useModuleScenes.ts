@@ -10,8 +10,12 @@ type Params = {
 };
 
 export function useModuleScenes({ scene, module, interactive }: Params) {
-  const freeNodeIds = new Set(
-    module.nodes.filter((node) => !node.occupied).map((node) => node.definition.id)
+  const freeNodeIds = useMemo(
+    () =>
+      new Set(
+        module.nodes.filter((node) => !node.occupied).map((node) => node.definition.id)
+      ),
+    [module.nodes]
   );
   const moduleScene = useMemo(() => scene.clone(true), [scene]);
   const ghostScene = useMemo(() => createGhostScene(scene), [scene]);

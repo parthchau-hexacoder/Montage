@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect } from "react";
 import { DesignController } from "../controllers/DesignController";
 
 const controller = new DesignController();
@@ -6,6 +6,10 @@ const controller = new DesignController();
 const DesignContext = createContext(controller);
 
 export const DesignProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useEffect(() => {
+    void controller.loadModulesFromBackend();
+  }, []);
+
   return (
     <DesignContext.Provider value={controller}>
       {children}

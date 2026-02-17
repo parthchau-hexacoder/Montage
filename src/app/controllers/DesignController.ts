@@ -1,4 +1,4 @@
-import { makeAutoObservable } from "mobx";
+import { makeAutoObservable, runInAction } from "mobx";
 import { BuildingComposition } from "../../core/composition/BuildingComposition";
 import { ModuleManager } from "../../core/managers/ModuleManager";
 import { ModuleDefinition } from "../../core/composition/ModuleDefinition";
@@ -8,6 +8,7 @@ import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import type { Bounds3 } from "../../core/composition/types";
 import type { BackendModule } from "../models/backendModule";
 import { CompositionHistory } from "./CompositionHistory";
+import { fetchBackendModules } from "../api/modulesApi";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
@@ -21,6 +22,10 @@ export class DesignController {
     moduleManager: ModuleManager;
     nodeManager: NodeManager;
     snapManager: SnapManager;
+    moduleDefinitions: ModuleDefinition[] = [];
+    isModulesLoading = false;
+    modulesLoadError: string | null = null;
+    private hasLoadedModules = false;
     private history: CompositionHistory;
 
     constructor() {
@@ -34,14 +39,42 @@ export class DesignController {
     }
 
     initializeFromBackendModules(modules: BackendModule[]) {
+        const definitions = modules.map((module) => new ModuleDefinition(module));
+
+        this.moduleDefinitions = definitions;
         this.moduleManager.clearDefinitions();
 
-        modules
-            .map((module) => new ModuleDefinition(module))
-            .forEach((definition) => {
-                this.moduleManager.registerDefinition(definition);
-            });
+        definitions.forEach((definition) => {
+            this.moduleManager.registerDefinition(definition);
+        });
     }
+
+    loadModulesFromBackend = async (force = false) => {
+        if (this.isModulesLoading) return;
+        if (this.hasLoadedModules && !force) return;
+
+        runInAction(() => {
+            this.isModulesLoading = true;
+            this.modulesLoadError = null;
+        });
+
+        try {
+            const modules = await fetchBackendModules();
+
+            runInAction(() => {
+                this.initializeFromBackendModules(modules);
+                this.hasLoadedModules = true;
+            });
+        } catch (error) {
+            runInAction(() => {
+                this.modulesLoadError = getErrorMessage(error);
+            });
+        } finally {
+            runInAction(() => {
+                this.isModulesLoading = false;
+            });
+        }
+    };
 
     get canUndo() {
         return this.history.canUndo;
@@ -52,7 +85,7 @@ export class DesignController {
     }
 
     get availableModuleDefinitions() {
-        return this.moduleManager.getDefinitions();
+        return this.moduleDefinitions;
     }
 
     addModule = (typeId: string) => {
@@ -252,4 +285,12 @@ export class DesignController {
         }
     }
 
+}
+
+function getErrorMessage(error: unknown) {
+    if (error instanceof Error && error.message.trim()) {
+        return error.message;
+    }
+
+    return "Failed to load modules.";
 }
