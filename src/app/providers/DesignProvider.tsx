@@ -2,7 +2,6 @@ import React, { createContext, useContext } from "react";
 import { DesignController } from "../controllers/DesignController";
 
 const controller = new DesignController();
-controller.initializeDefaults();
 
 const DesignContext = createContext(controller);
 

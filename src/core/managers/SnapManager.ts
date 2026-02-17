@@ -4,9 +4,9 @@ import { ModuleInstance } from "../composition/ModuleInstance";
 import { Euler, Quaternion, Vector3 } from "three";
 
 
-const SNAP_THRESHOLD = 0.3;
+export const SNAP_THRESHOLD = 0.3;
 const SNAP_THRESHOLD_SQ = SNAP_THRESHOLD * SNAP_THRESHOLD;
-const PARALLEL_DOT_TOLERANCE = 1e-4;
+const PARALLEL_DOT_TOLERANCE = 1e-2;
 
 type RuntimeNode = {
     node: NodeInstance;
@@ -23,7 +23,7 @@ export class SnapManager {
 
     findSnapTarget(
         movingModule: ModuleInstance
-    ): { source: NodeInstance; target: NodeInstance } | null {
+    ): { source: NodeInstance; target: NodeInstance; distance: number } | null {
         const freeNodes = this.nodeManager.getAllFreeNodes();
         const moduleQuaternionCache = new Map<string, Quaternion>();
         const sourceRuntime: RuntimeNode[] = [];
@@ -63,7 +63,14 @@ export class SnapManager {
             }
         }
 
-        return bestMatch;
+        if (!bestMatch) {
+            return null;
+        }
+
+        return {
+            ...bestMatch,
+            distance: Math.sqrt(bestDistanceSq),
+        };
     }
 
     computeSnapTransform(
