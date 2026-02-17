@@ -12,7 +12,7 @@ import { fetchBackendModules } from "../api/modulesApi";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
-const SNAP_COMMIT_DISTANCE = 0.25;
+const SNAP_COMMIT_DISTANCE = SNAP_THRESHOLD;
 const MAGNET_MIN_STRENGTH = 0.25;
 const MAGNET_MAX_STRENGTH = 0.75;
 const DRAG_DETACH_DISTANCE = 0.6;
@@ -194,13 +194,15 @@ export class DesignController {
     trySnap = (module: ModuleInstance) => {
         const result = this.snapManager.findSnapTarget(module);
 
-        if (!result) return;
+        if (!result) {
+            return;
+        }
 
         const previousPosition = { ...module.transform.position };
         const newPos = this.snapManager.computeSnapTransform(
             module,
-            result.source,
-            result.target
+            result.sourceWorldPosition,
+            result.targetWorldPosition
         );
 
         const offsetX = newPos.x - module.transform.position.x;
@@ -223,12 +225,9 @@ export class DesignController {
             );
         }
 
-        const overlapping = this.getOverlappingModules(module);
-        const relevantOverlaps = overlapping.filter(
-            (other) => other.instanceId !== result.target.module.instanceId
-        );
+        const overlapping = this.getOverlappingModules(module, 0.01);
 
-        if (relevantOverlaps.length > 0) {
+        if (overlapping.length > 0) {
             module.setPosition(
                 previousPosition.x,
                 previousPosition.y,
@@ -239,6 +238,7 @@ export class DesignController {
 
         if (shouldCommitSnap) {
             this.nodeManager.markOccupied(result.source, result.target);
+            return;
         }
     };
 

@@ -231,8 +231,6 @@ function extractNodeDefinitions(scene: Object3D): NodeDefinition[] {
         });
     });
 
-    console.log(scene)
-
     return nodes;
 }
 

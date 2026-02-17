@@ -14,6 +14,20 @@ type RuntimeNode = {
     direction: Vector3;
 };
 
+type WorldPoint = {
+    x: number;
+    y: number;
+    z: number;
+};
+
+export type SnapTarget = {
+    source: NodeInstance;
+    target: NodeInstance;
+    distance: number;
+    sourceWorldPosition: WorldPoint;
+    targetWorldPosition: WorldPoint;
+};
+
 export class SnapManager {
     private nodeManager: NodeManager;
 
@@ -21,20 +35,21 @@ export class SnapManager {
         this.nodeManager = nodeManager;
     }
 
-    findSnapTarget(
-        movingModule: ModuleInstance
-    ): { source: NodeInstance; target: NodeInstance; distance: number } | null {
+    findSnapTarget(movingModule: ModuleInstance): SnapTarget | null {
         const freeNodes = this.nodeManager.getAllFreeNodes();
         const moduleQuaternionCache = new Map<string, Quaternion>();
         const sourceRuntime: RuntimeNode[] = [];
         const targetRuntime: RuntimeNode[] = [];
-        let bestMatch: { source: NodeInstance; target: NodeInstance } | null = null;
+        let bestMatch: { source: RuntimeNode; target: RuntimeNode } | null = null;
         let bestDistanceSq = Number.POSITIVE_INFINITY;
+        let parallelRejected = 0;
+        let distanceRejected = 0;
+        let worseThanBestRejected = 0;
 
         for (const sourceNode of movingModule.nodes) {
             if (sourceNode.occupied) continue;
             sourceRuntime.push(
-                this.buildRuntimeNode(sourceNode, moduleQuaternionCache)
+                ...this.buildRuntimeNodes(sourceNode, moduleQuaternionCache)
             );
         }
 
@@ -43,23 +58,33 @@ export class SnapManager {
             if (targetNode.occupied) continue;
 
             targetRuntime.push(
-                this.buildRuntimeNode(targetNode, moduleQuaternionCache)
+                ...this.buildRuntimeNodes(targetNode, moduleQuaternionCache)
             );
         }
 
         for (const source of sourceRuntime) {
             for (const target of targetRuntime) {
                 const dot = source.direction.dot(target.direction);
-                const absDot = Math.abs(dot);
-
-                // Strict parallel check: same or opposite direction only.
-                if (Math.abs(1 - absDot) > PARALLEL_DOT_TOLERANCE) continue;
-
                 const distSq = source.position.distanceToSquared(target.position);
-                if (distSq >= SNAP_THRESHOLD_SQ || distSq >= bestDistanceSq) continue;
+
+                // Connectors should face each other, not point in the same direction.
+                if (dot > -(1 - PARALLEL_DOT_TOLERANCE)) {
+                    parallelRejected += 1;
+                    continue;
+                }
+
+                if (distSq >= SNAP_THRESHOLD_SQ) {
+                    distanceRejected += 1;
+                    continue;
+                }
+
+                if (distSq >= bestDistanceSq) {
+                    worseThanBestRejected += 1;
+                    continue;
+                }
 
                 bestDistanceSq = distSq;
-                bestMatch = { source: source.node, target: target.node };
+                bestMatch = { source, target };
             }
         }
 
@@ -68,19 +93,30 @@ export class SnapManager {
         }
 
         return {
-            ...bestMatch,
+            source: bestMatch.source.node,
+            target: bestMatch.target.node,
             distance: Math.sqrt(bestDistanceSq),
+            sourceWorldPosition: {
+                x: bestMatch.source.position.x,
+                y: bestMatch.source.position.y,
+                z: bestMatch.source.position.z,
+            },
+            targetWorldPosition: {
+                x: bestMatch.target.position.x,
+                y: bestMatch.target.position.y,
+                z: bestMatch.target.position.z,
+            },
         };
     }
 
     computeSnapTransform(
         movingModule: ModuleInstance,
-        source: NodeInstance,
-        target: NodeInstance
+        sourceWorldPosition: WorldPoint,
+        targetWorldPosition: WorldPoint
     ) {
-        const dx = target.worldPosition.x - source.worldPosition.x;
-        const dy = target.worldPosition.y - source.worldPosition.y;
-        const dz = target.worldPosition.z - source.worldPosition.z;
+        const dx = targetWorldPosition.x - sourceWorldPosition.x;
+        const dy = targetWorldPosition.y - sourceWorldPosition.y;
+        const dz = targetWorldPosition.z - sourceWorldPosition.z;
 
         return {
             x: movingModule.transform.position.x + dx,
@@ -89,21 +125,88 @@ export class SnapManager {
         };
     }
 
-    private buildRuntimeNode(
+    private buildRuntimeNodes(
         node: NodeInstance,
         moduleQuaternionCache: Map<string, Quaternion>
-    ): RuntimeNode {
-        const position = new Vector3();
-        const direction = new Vector3();
+    ): RuntimeNode[] {
         const moduleQuaternion = this.getModuleQuaternion(
             node.module,
             moduleQuaternionCache
         );
+        const runtimeNode = this.buildRuntimeNode(node, moduleQuaternion);
+        const variants: RuntimeNode[] = [runtimeNode];
+
+        if (!this.shouldExpandAmbiguousNode(node)) {
+            return variants;
+        }
+
+        const bounds = node.module.localBounds;
+        if (!bounds) {
+            return variants;
+        }
+
+        const local = node.definition.position;
+        const faces: Array<{ x: number; z: number; dx: number; dz: number }> = [
+            { x: bounds.min.x, z: local.z, dx: -1, dz: 0 },
+            { x: bounds.max.x, z: local.z, dx: 1, dz: 0 },
+            { x: local.x, z: bounds.min.z, dx: 0, dz: -1 },
+            { x: local.x, z: bounds.max.z, dx: 0, dz: 1 },
+        ];
+
+        for (const face of faces) {
+            const position = new Vector3(face.x, local.y, face.z)
+                .applyQuaternion(moduleQuaternion)
+                .add(
+                    _tmpModulePosition.set(
+                        node.module.transform.position.x,
+                        node.module.transform.position.y,
+                        node.module.transform.position.z
+                    )
+                );
+            const direction = new Vector3(face.dx, 0, face.dz)
+                .applyQuaternion(moduleQuaternion)
+                .normalize();
+            variants.push({ node, position, direction });
+        }
+
+        return variants;
+    }
+
+    private buildRuntimeNode(
+        node: NodeInstance,
+        moduleQuaternion: Quaternion
+    ): RuntimeNode {
+        const position = new Vector3();
+        const direction = new Vector3();
 
         this.writeWorldNodePosition(node, moduleQuaternion, position);
         this.writeNodeDirection(node, moduleQuaternion, direction);
 
         return { node, position, direction };
+    }
+
+    private shouldExpandAmbiguousNode(node: NodeInstance): boolean {
+        const bounds = node.module.localBounds;
+        if (!bounds) return false;
+
+        const width = bounds.max.x - bounds.min.x;
+        const depth = bounds.max.z - bounds.min.z;
+        if (width <= 0 || depth <= 0) return false;
+
+        const local = node.definition.position;
+        const distToX = Math.min(
+            Math.abs(local.x - bounds.min.x),
+            Math.abs(bounds.max.x - local.x)
+        );
+        const distToZ = Math.min(
+            Math.abs(local.z - bounds.min.z),
+            Math.abs(bounds.max.z - local.z)
+        );
+
+        const faceEpsilonX = Math.max(width * 0.2, 0.05);
+        const faceEpsilonZ = Math.max(depth * 0.2, 0.05);
+
+        return distToX > faceEpsilonX && distToZ > faceEpsilonZ;
     }
 
     private getModuleQuaternion(

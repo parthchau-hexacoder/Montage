@@ -15,7 +15,7 @@ export function applyPlan2DStyle(scene: THREE.Object3D, state: NodeState) {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh || !mesh.material || !mesh.geometry) return;
 
-    const markerId = parseNodeMarkerId(object.name);
+    const markerId = parseNodeMarkerIdInHierarchy(object);
     const kind = classifyPlanMesh(object, markerId);
 
     if (kind === "hidden") {
@@ -26,21 +26,13 @@ export function applyPlan2DStyle(scene: THREE.Object3D, state: NodeState) {
     mesh.visible = true;
     const materials = ensureLocalMaterials(mesh);
     const isFreeNode = markerId ? state.freeNodeIds.has(markerId) : false;
-    const nodeVisible = !state.enabled || isFreeNode;
-
-    if (kind === "node" && !nodeVisible) {
-      mesh.visible = false;
-      setOutlineVisibility(mesh, false, false);
-      return;
-    }
-
     const fillColor = getFillColor(kind, isFreeNode);
 
     materials.forEach((material) => {
       setFlatPlanMaterial(material, fillColor);
     });
 
-    if (kind === "node") {
+    if (kind === "node" && isFreeNode) {
       setOutlineVisibility(mesh, false, true);
       setDashedOutlineColor(mesh, PLAN_NODE);
     } else {
@@ -162,7 +154,7 @@ function ensureDashedOutline(mesh: THREE.Mesh): THREE.LineSegments {
 }
 
 export function parseNodeMarkerId(name: string): string | null {
-  if (name.startsWith("NODE_")) {
+  if (name.startsWith("Node")) {
     const parts = name.split("_");
 
     if (parts.length >= 3) {
@@ -199,4 +191,16 @@ function createPlanFillMaterial(source: THREE.Material): THREE.MeshBasicMaterial
     depthTest: mat.depthTest,
     toneMapped: false,
   });
+}
+
+function parseNodeMarkerIdInHierarchy(object: THREE.Object3D): string | null {
+  let current: THREE.Object3D | null = object;
+
+  while (current) {
+    const markerId = parseNodeMarkerId(current.name);
+    if (markerId) return markerId;
+    current = current.parent;
+  }
+
+  return null;
 }
