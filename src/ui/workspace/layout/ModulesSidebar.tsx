@@ -146,7 +146,7 @@ export const ModulesSidebar = observer(({ viewMode, onChangeViewMode }: Props) =
                   <img
                     src={definition.previewImage}
                     alt={definition.name}
-                    className="h-[220px] w-full rounded-md border border-[#d4d8e2] bg-white object-cover"
+                    className="h-[220px] w-full rounded-md border border-[#d4d8e2] bg-white object-contain"
                     loading="lazy"
                   />
                 ) : (

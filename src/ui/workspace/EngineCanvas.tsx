@@ -83,7 +83,7 @@ export const EngineCanvas = observer(({ viewMode, zoomCommand }: Props) => {
         </>
       )}
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<CanvasModelLoadingFallback />}>
         {Array.from(composition.modules.values()).map((module) => (
           <ModuleMesh
             key={module.instanceId}
@@ -105,4 +105,17 @@ export const EngineCanvas = observer(({ viewMode, zoomCommand }: Props) => {
       />
     </Canvas>
   );
+});
+
+const CanvasModelLoadingFallback = observer(() => {
+  const { beginCanvasLoad, endCanvasLoad } = useDesign();
+
+  useEffect(() => {
+    beginCanvasLoad();
+    return () => {
+      endCanvasLoad();
+    };
+  }, [beginCanvasLoad, endCanvasLoad]);
+
+  return null;
 });

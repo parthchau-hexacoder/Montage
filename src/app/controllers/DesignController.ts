@@ -24,6 +24,7 @@ export class DesignController {
     snapManager: SnapManager;
     moduleDefinitions: ModuleDefinition[] = [];
     isModulesLoading = false;
+    private canvasLoadCount = 0;
     modulesLoadError: string | null = null;
     private hasLoadedModules = false;
     private history: CompositionHistory;
@@ -89,6 +90,18 @@ export class DesignController {
     get availableModuleDefinitions() {
         return this.moduleDefinitions;
     }
+
+    get isCanvasLoading() {
+        return this.canvasLoadCount > 0;
+    }
+
+    beginCanvasLoad = () => {
+        this.canvasLoadCount += 1;
+    };
+
+    endCanvasLoad = () => {
+        this.canvasLoadCount = Math.max(0, this.canvasLoadCount - 1);
+    };
 
     addModule = (typeId: string) => {
         return this.history.recordChange(() => {

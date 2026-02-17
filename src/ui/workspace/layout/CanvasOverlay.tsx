@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../../app/providers/DesignProvider";
+import { CanvasLoader } from "./CanvasLoader";
 
 type Props = {
   viewMode: "2d" | "3d";
@@ -10,10 +11,13 @@ type Props = {
 
 export const CanvasOverlay = observer(
   ({ viewMode, onChangeViewMode, onZoomIn, onZoomOut }: Props) => {
-    const { undo, redo, canUndo, canRedo } = useDesign();
+    const { undo, redo, canUndo, canRedo, isCanvasLoading, isModulesLoading } = useDesign();
 
     return (
       <div className="pointer-events-none absolute inset-0 z-10">
+        {isModulesLoading && <CanvasLoader fullscreen />}
+        {!isModulesLoading && isCanvasLoading && <CanvasLoader />}
+
         <div className="absolute left-1/2 top-4 hidden -translate-x-1/2 overflow-hidden rounded-md border border-[#d4d8e2] bg-white lg:flex">
           <button
             className={`pointer-events-auto px-3 py-1.5 text-xs font-semibold transition ${
