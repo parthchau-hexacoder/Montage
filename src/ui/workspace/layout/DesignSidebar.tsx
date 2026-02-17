@@ -19,7 +19,7 @@ export const DesignSidebar = observer(({
   const modules = Array.from(composition.modules.values());
 
   return (
-    <aside className="flex h-full w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-[#f5f5f8] p-4">
+    <aside className="hidden h-full w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-[#f5f5f8] p-4 lg:flex">
       <div className="mb-4 flex shrink-0 items-center justify-between">
         <h2 className="text-3xl font-semibold text-gray-800">Design</h2>
         <SidebarViewToggle value={viewMode} onChange={onChangeViewMode} />

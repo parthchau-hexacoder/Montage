@@ -40,6 +40,6 @@ export class BuildingComposition{
     }
 
     get totalCost(){
-        return Array.from(this.modules.values()).reduce((sum, m) => sum + m.baseCost, 0);
+        return Array.from(this.modules.values()).reduce((sum, m) => sum + m.definition.pricePerSqft, 0);
     }
 }

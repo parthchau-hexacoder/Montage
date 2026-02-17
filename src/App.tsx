@@ -16,7 +16,7 @@ type ZoomCommand = {
 
 export default function App() {
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
-  const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>("design");
+  const [activeSidebarTab, setActiveSidebarTab] = useState<SidebarTab>("modules");
   const [designViewMode, setDesignViewMode] = useState<SidebarViewMode>("grid");
   const [modulesViewMode, setModulesViewMode] = useState<SidebarViewMode>("grid");
   const [zoomCommand, setZoomCommand] = useState<ZoomCommand>(null);
@@ -29,9 +29,9 @@ export default function App() {
 
   return (
     <DesignProvider>
-      <div className="flex h-screen flex-col bg-[#f3f4f6] text-gray-900">
+      <div className="flex h-screen min-h-screen flex-col bg-[#eef0f4] text-gray-900">
         <WorkspaceTopBar />
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           <ModeRail activeTab={activeSidebarTab} onChangeTab={setActiveSidebarTab} />
           <WorkspaceSidebar
             activeTab={activeSidebarTab}

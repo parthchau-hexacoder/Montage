@@ -163,7 +163,7 @@ function isNodeType(value: string): value is NodeType {
 function parseNodeMarker(
     name: string
 ): { type: NodeType; id: string } | null {
-    if (name.startsWith("NODE_")) {
+    if (name.startsWith("Node")) {
         const parts = name.split("_");
 
         if (parts.length >= 3) {
@@ -230,6 +230,8 @@ function extractNodeDefinitions(scene: Object3D): NodeDefinition[] {
             compatibleWith: [marker.type],
         });
     });
+
+    console.log(scene)
 
     return nodes;
 }

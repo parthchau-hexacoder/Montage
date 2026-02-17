@@ -39,7 +39,9 @@ export class DesignController {
     }
 
     initializeFromBackendModules(modules: BackendModule[]) {
-        const definitions = modules.map((module) => new ModuleDefinition(module));
+        const definitions = modules
+            .map((module) => new ModuleDefinition(module))
+            .filter((definition) => definition.glbPath.trim().length > 0);
 
         this.moduleDefinitions = definitions;
         this.moduleManager.clearDefinitions();
