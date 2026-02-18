@@ -1,3 +1,3 @@
-export type SidebarTab = "design" | "modules";
+export type SidebarTab = "design" | "modules" | "templates";
 
 export type SidebarViewMode = "grid" | "list";

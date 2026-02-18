@@ -1,8 +1,10 @@
 import type { JSX } from "react";
+import { observer } from "mobx-react-lite";
+import { useWorkspaceUi } from "../../../app/providers/WorkspaceUiProvider";
 import type { SidebarTab } from "./sidebar/types";
 
 const ITEMS: Array<{
-  id: SidebarTab | "templates" | "saved";
+  id: SidebarTab | "saved";
   label: string;
   icon: (className: string) => JSX.Element;
 }> = [
@@ -47,18 +49,15 @@ const ITEMS: Array<{
   },
 ];
 
-type Props = {
-  activeTab: SidebarTab;
-  onChangeTab: (tab: SidebarTab) => void;
-};
+export const ModeRail = observer(() => {
+  const { activeSidebarTab, setActiveSidebarTab } = useWorkspaceUi();
 
-export function ModeRail({ activeTab, onChangeTab }: Props) {
   return (
     <aside className="hidden w-[72px] border-r border-gray-200 bg-[#f6f7fb] py-5 lg:block">
       <div className="flex flex-col items-center gap-3">
         {ITEMS.map((item) => {
-          const isInteractive = item.id === "design" || item.id === "modules";
-          const isActive = item.id === activeTab;
+          const isInteractive = item.id !== "saved";
+          const isActive = item.id === activeSidebarTab;
 
           return (
             <button
@@ -69,7 +68,7 @@ export function ModeRail({ activeTab, onChangeTab }: Props) {
               type="button"
               onClick={
                 isInteractive
-                  ? () => onChangeTab(item.id as SidebarTab)
+                  ? () => setActiveSidebarTab(item.id as SidebarTab)
                   : undefined
               }
               disabled={!isInteractive}
@@ -98,4 +97,4 @@ export function ModeRail({ activeTab, onChangeTab }: Props) {
       </div>
     </aside>
   );
-}
+});

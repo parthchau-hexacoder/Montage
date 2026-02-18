@@ -1,32 +1,23 @@
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../../app/providers/DesignProvider";
+import { useWorkspaceUi } from "../../../app/providers/WorkspaceUiProvider";
 import { SidebarViewToggle } from "./sidebar/components/SidebarViewToggle";
 import { ModulePreview3D } from "./sidebar/components/ModulePreview3D";
-import type { SidebarViewMode } from "./sidebar/types";
 
-type Props = {
-  viewMode: SidebarViewMode;
-  onChangeViewMode: (mode: SidebarViewMode) => void;
-  onOpenModulesTab: () => void;
-};
-
-export const DesignSidebar = observer(({
-  viewMode,
-  onChangeViewMode,
-  onOpenModulesTab,
-}: Props) => {
+export const DesignSidebar = observer(() => {
   const { composition, disjointSelectedModule } = useDesign();
+  const { designViewMode, setDesignViewMode, openModulesTab } = useWorkspaceUi();
   const modules = Array.from(composition.modules.values());
 
   return (
     <aside className="hidden h-full w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-[#f5f5f8] p-4 lg:flex">
       <div className="mb-4 flex shrink-0 items-center justify-between">
         <h2 className="text-3xl font-semibold text-gray-800">Design</h2>
-        <SidebarViewToggle value={viewMode} onChange={onChangeViewMode} />
+        <SidebarViewToggle value={designViewMode} onChange={setDesignViewMode} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {viewMode === "grid" ? (
+        {designViewMode === "grid" ? (
           <div className="space-y-3">
             {modules.map((module, index) => (
               <div
@@ -48,7 +39,7 @@ export const DesignSidebar = observer(({
 
             <button
               type="button"
-              onClick={onOpenModulesTab}
+              onClick={openModulesTab}
               className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white text-3xl text-gray-400"
               title="Open Modules"
             >

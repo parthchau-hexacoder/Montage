@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../app/providers/DesignProvider";
+import { useWorkspaceUi } from "../../app/providers/WorkspaceUiProvider";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { OrbitControls } from "@react-three/drei";
 import { ModuleMesh } from "./ModuleMesh.tsx";
@@ -9,16 +10,9 @@ import { GroundPlane } from "./plan3d/GroundPlane";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 
-type Props = {
-  viewMode: "2d" | "3d";
-  zoomCommand: {
-    id: number;
-    direction: "in" | "out";
-  } | null;
-};
-
-export const EngineCanvas = observer(({ viewMode, zoomCommand }: Props) => {
+export const EngineCanvas = observer(() => {
   const { composition, selectModule } = useDesign();
+  const { viewMode, zoomCommand } = useWorkspaceUi();
   const [isDraggingModule, setIsDraggingModule] = useState(false);
   const is2D = viewMode === "2d";
   const cameraRef = useRef<THREE.Camera | null>(null);

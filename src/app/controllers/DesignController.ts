@@ -7,8 +7,13 @@ import { SnapManager } from "../../core/managers/SnapManager";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import type { Bounds3 } from "../../core/composition/types";
 import type { BackendModule } from "../models/backendModule";
+import type {
+    BackendTemplate,
+    BackendTemplateModulePlacement,
+} from "../models/backendTemplate";
 import { CompositionHistory } from "./CompositionHistory";
 import { fetchBackendModules } from "../api/modulesApi";
+import { fetchBackendTemplates } from "../api/templatesApi";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
@@ -31,10 +36,15 @@ export class DesignController {
     nodeManager: NodeManager;
     snapManager: SnapManager;
     moduleDefinitions: ModuleDefinition[] = [];
+    templates: BackendTemplate[] = [];
+    private templateModuleDefinitions: ModuleDefinition[] = [];
     isModulesLoading = false;
+    isTemplatesLoading = false;
     private canvasLoadCount = 0;
     modulesLoadError: string | null = null;
+    templatesLoadError: string | null = null;
     private hasLoadedModules = false;
+    private hasLoadedTemplates = false;
     private history: CompositionHistory;
 
     constructor() {
@@ -53,11 +63,11 @@ export class DesignController {
             .filter((definition) => definition.glbPath.trim().length > 0);
 
         this.moduleDefinitions = definitions;
-        this.moduleManager.clearDefinitions();
+        this.registerCatalogDefinitions();
+    }
 
-        definitions.forEach((definition) => {
-            this.moduleManager.registerDefinition(definition);
-        });
+    initializeFromBackendTemplates(templates: BackendTemplate[]) {
+        this.templates = templates;
     }
 
     loadModulesFromBackend = async (force = false) => {
@@ -87,6 +97,33 @@ export class DesignController {
         }
     };
 
+    loadTemplatesFromBackend = async (force = false) => {
+        if (this.isTemplatesLoading) return;
+        if (this.hasLoadedTemplates && !force) return;
+
+        runInAction(() => {
+            this.isTemplatesLoading = true;
+            this.templatesLoadError = null;
+        });
+
+        try {
+            const templates = await fetchBackendTemplates();
+
+            runInAction(() => {
+                this.initializeFromBackendTemplates(templates);
+                this.hasLoadedTemplates = true;
+            });
+        } catch (error) {
+            runInAction(() => {
+                this.templatesLoadError = getErrorMessage(error, "Failed to load templates.");
+            });
+        } finally {
+            runInAction(() => {
+                this.isTemplatesLoading = false;
+            });
+        }
+    };
+
     get canUndo() {
         return this.history.canUndo;
     }
@@ -97,6 +134,30 @@ export class DesignController {
 
     get availableModuleDefinitions() {
         return this.moduleDefinitions;
+    }
+
+    get availableTemplates() {
+        return this.templates;
+    }
+
+    loadTemplateIntoCanvas = (templateId: string) => {
+        const template = this.templates.find(
+            (candidate) => String(candidate.id) === String(templateId)
+        );
+        if (!template) return;
+
+        const templateModules = this.createTemplateModuleInstances(template);
+
+        if (templateModules.length === 0) {
+            return;
+        }
+
+        this.history.recordChange(() => {
+            this.moduleManager.replaceModules(templateModules);
+            this.composition.graph.replaceConnections([]);
+            const lastModule = templateModules.at(-1) ?? null;
+            this.composition.setSelectedModule(lastModule?.instanceId ?? null);
+        });
     }
 
     get isCanvasLoading() {
@@ -244,7 +305,7 @@ export class DesignController {
                 continue;
             }
 
-            if (!!options.commit) {
+            if (options.commit) {
                 const connected = this.nodeManager.markOccupied(
                     candidate.source,
                     candidate.target
@@ -323,12 +384,126 @@ export class DesignController {
         }
     }
 
+    private registerCatalogDefinitions() {
+        this.moduleManager.clearDefinitions();
+
+        [...this.moduleDefinitions, ...this.templateModuleDefinitions].forEach((definition) => {
+            this.moduleManager.registerDefinition(definition);
+        });
+    }
+
+    private createTemplateModuleInstances(template: BackendTemplate) {
+        const modulesData = template.designData?.modulesData;
+        if (!Array.isArray(modulesData) || modulesData.length === 0) {
+            return [];
+        }
+
+        const discoveredDefinitions: ModuleDefinition[] = [];
+        const modules = modulesData
+            .map((moduleData, index) =>
+                this.buildModuleInstanceFromTemplateEntry(moduleData, index, discoveredDefinitions)
+            )
+            .filter((module): module is ModuleInstance => module !== null);
+
+        if (discoveredDefinitions.length > 0) {
+            this.mergeTemplateModuleDefinitions(discoveredDefinitions);
+        }
+
+        return modules;
+    }
+
+    private buildModuleInstanceFromTemplateEntry(
+        moduleData: BackendTemplateModulePlacement,
+        index: number,
+        discoveredDefinitions: ModuleDefinition[]
+    ) {
+        const source = moduleData.module;
+        if (!source) {
+            return null;
+        }
+
+        const definition = new ModuleDefinition(source);
+        if (!definition.glbPath.trim()) {
+            return null;
+        }
+
+        discoveredDefinitions.push(definition);
+
+        const module = new ModuleInstance(definition);
+        const position = parseTemplateModulePosition(moduleData.position, index);
+        const rotationY = parseTemplateModuleRotationY(moduleData.rotation);
+
+        module.setPosition(position.x, position.y, position.z);
+        module.setRotation(0, rotationY, 0);
+
+        return module;
+    }
+
+    private mergeTemplateModuleDefinitions(definitions: ModuleDefinition[]) {
+        const merged = new Map(
+            this.templateModuleDefinitions.map((definition) => [definition.id, definition])
+        );
+
+        definitions.forEach((definition) => {
+            merged.set(definition.id, definition);
+        });
+
+        this.templateModuleDefinitions = Array.from(merged.values());
+        this.registerCatalogDefinitions();
+    }
 }
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(error: unknown, fallbackMessage = "Failed to load modules.") {
     if (error instanceof Error && error.message.trim()) {
         return error.message;
     }
 
-    return "Failed to load modules.";
+    return fallbackMessage;
+}
+
+function parseTemplateModulePosition(
+    position: BackendTemplateModulePlacement["position"],
+    index: number
+) {
+    if (Array.isArray(position) && position.length >= 3) {
+        const x = asFiniteNumber(position[0], index * 3);
+        const y = asFiniteNumber(position[1], 0);
+        const z = asFiniteNumber(position[2], 0);
+        return { x, y, z };
+    }
+
+    return { x: index * 3, y: 0, z: 0 };
+}
+
+function parseTemplateModuleRotationY(
+    rotation: BackendTemplateModulePlacement["rotation"]
+) {
+    if (typeof rotation === "number") {
+        return normalizeRotation(asFiniteNumber(rotation, 0));
+    }
+
+    if (Array.isArray(rotation) && rotation.length >= 2) {
+        return normalizeRotation(asFiniteNumber(rotation[1], 0));
+    }
+
+    if (rotation && typeof rotation === "object" && !Array.isArray(rotation)) {
+        return normalizeRotation(asFiniteNumber(rotation.y, 0));
+    }
+
+    return 0;
+}
+
+function asFiniteNumber(value: unknown, fallback: number) {
+    const parsed =
+        typeof value === "number" ? value : Number.parseFloat(String(value));
+
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeRotation(value: number) {
+    if (Math.abs(value) > Math.PI * 2 + 0.001) {
+        return (value * Math.PI) / 180;
+    }
+
+    return value;
 }

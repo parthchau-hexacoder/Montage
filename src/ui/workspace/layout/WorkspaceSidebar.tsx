@@ -1,38 +1,18 @@
+import { observer } from "mobx-react-lite";
+import { useWorkspaceUi } from "../../../app/providers/WorkspaceUiProvider";
 import { DesignSidebar } from "./DesignSidebar";
 import { ModulesSidebar } from "./ModulesSidebar";
-import type { SidebarTab, SidebarViewMode } from "./sidebar/types";
 
-type Props = {
-  activeTab: SidebarTab;
-  designViewMode: SidebarViewMode;
-  modulesViewMode: SidebarViewMode;
-  onChangeDesignViewMode: (mode: SidebarViewMode) => void;
-  onChangeModulesViewMode: (mode: SidebarViewMode) => void;
-  onOpenModulesTab: () => void;
-};
+export const WorkspaceSidebar = observer(() => {
+  const { activeSidebarTab } = useWorkspaceUi();
 
-export function WorkspaceSidebar({
-  activeTab,
-  designViewMode,
-  modulesViewMode,
-  onChangeDesignViewMode,
-  onChangeModulesViewMode,
-  onOpenModulesTab,
-}: Props) {
-  if (activeTab === "modules") {
-    return (
-      <ModulesSidebar
-        viewMode={modulesViewMode}
-        onChangeViewMode={onChangeModulesViewMode}
-      />
-    );
+  if (activeSidebarTab === "modules") {
+    return <ModulesSidebar />;
   }
 
-  return (
-    <DesignSidebar
-      viewMode={designViewMode}
-      onChangeViewMode={onChangeDesignViewMode}
-      onOpenModulesTab={onOpenModulesTab}
-    />
-  );
-}
+  if (activeSidebarTab === "templates") {
+    return <ModulesSidebar catalog="templates" />;
+  }
+
+  return <DesignSidebar />;
+});

@@ -1,17 +1,12 @@
 import { observer } from "mobx-react-lite";
 import { useDesign } from "../../../app/providers/DesignProvider";
+import { useWorkspaceUi } from "../../../app/providers/WorkspaceUiProvider";
 import { CanvasLoader } from "./CanvasLoader";
 
-type Props = {
-  viewMode: "2d" | "3d";
-  onChangeViewMode: (mode: "2d" | "3d") => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-};
-
 export const CanvasOverlay = observer(
-  ({ viewMode, onChangeViewMode, onZoomIn, onZoomOut }: Props) => {
+  () => {
     const { undo, redo, canUndo, canRedo, isCanvasLoading, isModulesLoading } = useDesign();
+    const { viewMode, setViewMode, toggleViewMode, issueZoom } = useWorkspaceUi();
 
     return (
       <div className="pointer-events-none absolute inset-0 z-10">
@@ -23,7 +18,7 @@ export const CanvasOverlay = observer(
             className={`pointer-events-auto px-3 py-1.5 text-xs font-semibold transition ${
               viewMode === "2d" ? "bg-gray-900 text-white" : "bg-white text-gray-700"
             }`}
-            onClick={() => onChangeViewMode("2d")}
+            onClick={() => setViewMode("2d")}
           >
             2D Top
           </button>
@@ -31,7 +26,7 @@ export const CanvasOverlay = observer(
             className={`pointer-events-auto border-l border-[#d4d8e2] px-3 py-1.5 text-xs font-semibold transition ${
               viewMode === "3d" ? "bg-gray-900 text-white" : "bg-white text-gray-700"
             }`}
-            onClick={() => onChangeViewMode("3d")}
+            onClick={() => setViewMode("3d")}
           >
             3D View
           </button>
@@ -40,7 +35,7 @@ export const CanvasOverlay = observer(
         <div className="absolute right-6 top-6 flex items-center gap-1 rounded-lg border border-[#d5d9e3] bg-[#f4f5f8] p-1 shadow-sm">
           <button
             type="button"
-            onClick={() => onChangeViewMode(viewMode === "2d" ? "3d" : "2d")}
+            onClick={toggleViewMode}
             className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded border border-[#d8dbe3] bg-white text-[#4b5563] transition hover:bg-[#eef2f6]"
             title={`Switch to ${viewMode === "2d" ? "3D" : "2D"} view`}
           >
@@ -119,7 +114,7 @@ export const CanvasOverlay = observer(
           </button>
           <button
             className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded border border-transparent text-[#1f2937] transition hover:border-[#d4d8e2] hover:bg-white"
-            onClick={onZoomIn}
+            onClick={() => issueZoom("in")}
             title="Zoom In"
           >
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -129,7 +124,7 @@ export const CanvasOverlay = observer(
           </button>
           <button
             className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded border border-transparent text-[#1f2937] transition hover:border-[#d4d8e2] hover:bg-white"
-            onClick={onZoomOut}
+            onClick={() => issueZoom("out")}
             title="Zoom Out"
           >
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
