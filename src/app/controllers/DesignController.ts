@@ -3,7 +3,7 @@ import { BuildingComposition } from "../../core/composition/BuildingComposition"
 import { ModuleManager } from "../../core/managers/ModuleManager";
 import { ModuleDefinition } from "../../core/composition/ModuleDefinition";
 import { NodeManager } from "../../core/managers/NodeManager";
-import { SNAP_THRESHOLD, SnapManager } from "../../core/managers/SnapManager";
+import { SnapManager } from "../../core/managers/SnapManager";
 import { ModuleInstance } from "../../core/composition/ModuleInstance";
 import type { Bounds3 } from "../../core/composition/types";
 import type { BackendModule } from "../models/backendModule";
@@ -12,12 +12,13 @@ import { fetchBackendModules } from "../api/modulesApi";
 const DISJOINT_OFFSET_STEP = 0.4;
 const DISJOINT_OFFSET_TRIES = 8;
 const QUARTER_TURN_RADIANS = Math.PI / 2;
-const SNAP_LOCK_DISTANCE = 0.2;
-const SNAP_COMMIT_DISTANCE = SNAP_LOCK_DISTANCE;
-const MAGNET_MIN_STRENGTH = 0.2;
-const MAGNET_MAX_STRENGTH = 0.92;
 const SNAP_OVERLAP_EPSILON = 0.01;
-const DRAG_DETACH_DISTANCE = 0.6;
+const DRAG_DETACH_DISTANCE = 0.15;
+
+type SnapAttemptResult = {
+    snapped: boolean;
+    magnetActive: boolean;
+};
 
 export class DesignController {
     composition: BuildingComposition;
@@ -129,12 +130,12 @@ export class DesignController {
         targetX: number,
         targetY: number,
         targetZ: number
-    ) => {
+    ): Set<string> | null => {
         const dx = targetX - module.transform.position.x;
         const dy = targetY - module.transform.position.y;
         const dz = targetZ - module.transform.position.z;
         if (dx === 0 && dy === 0 && dz === 0) {
-            return;
+            return null;
         }
         const activeConnections =
             this.composition.graph.getConnectionsForModule(module.instanceId);
@@ -142,10 +143,18 @@ export class DesignController {
             const pullDistanceSq = dx * dx + dy * dy + dz * dz;
 
             if (pullDistanceSq < DRAG_DETACH_DISTANCE * DRAG_DETACH_DISTANCE) {
-                return;
+                return null;
             }
 
-            this.nodeManager.disjointModule(module.instanceId);
+            const disconnected = this.nodeManager.disjointModule(module.instanceId);
+
+            module.setPosition(
+                module.transform.position.x + dx,
+                module.transform.position.y + dy,
+                module.transform.position.z + dz
+            );
+
+            return disconnected;
         }
 
         module.setPosition(
@@ -153,6 +162,8 @@ export class DesignController {
             module.transform.position.y + dy,
             module.transform.position.z + dz
         );
+
+        return null;
     };
 
     rotateModuleQuarter = (module: ModuleInstance, direction: "cw" | "ccw") => {
@@ -184,7 +195,7 @@ export class DesignController {
         this.history.recordChange(() => {
             const removedConnections = this.nodeManager.disjointModule(selectedModuleId);
 
-            if (removedConnections > 0) {
+            if (removedConnections.size > 0) {
                 const module = this.composition.modules.get(selectedModuleId);
                 if (module) {
                     this.offsetDisjointedModule(module);
@@ -195,70 +206,61 @@ export class DesignController {
 
     trySnap = (
         module: ModuleInstance,
-        options: { commit?: boolean } = {}
-    ) => {
-        const candidates = this.snapManager.findSnapTargets(module);
+        options: {
+            commit?: boolean;
+            excludeModuleIds?: Set<string>;
+        } = {}
+    ): SnapAttemptResult => {
+        const candidates = this.snapManager.findSnapTargets(
+            module,
+            options.excludeModuleIds
+        );
 
         if (candidates.length === 0) {
-            return;
+            return { snapped: false, magnetActive: false };
         }
 
-        const commit = !!options.commit;
         const startPosition = { ...module.transform.position };
-
         for (const candidate of candidates) {
+            module.setPosition(startPosition.x, startPosition.y, startPosition.z);
+
             const snapPosition = this.snapManager.computeSnapTransform(
                 module,
                 candidate.sourceWorldPosition,
                 candidate.targetWorldPosition
             );
-
-            const offsetX = snapPosition.x - startPosition.x;
-            const offsetY = snapPosition.y - startPosition.y;
-            const offsetZ = snapPosition.z - startPosition.z;
-            const withinLockDistance = candidate.distance <= SNAP_LOCK_DISTANCE;
-            const normalizedDistance = Math.min(
-                candidate.distance / SNAP_THRESHOLD,
-                1
-            );
-            const attraction = 1 - normalizedDistance;
-            const magnetStrength = withinLockDistance
-                ? 1
-                : MAGNET_MIN_STRENGTH +
-                attraction * attraction * (MAGNET_MAX_STRENGTH - MAGNET_MIN_STRENGTH);
-
-            module.setPosition(
-                startPosition.x + offsetX * magnetStrength,
-                startPosition.y + offsetY * magnetStrength,
-                startPosition.z + offsetZ * magnetStrength
-            );
+            module.setPosition(snapPosition.x, snapPosition.y, snapPosition.z);
 
             const overlapping = this.getOverlappingModules(module, SNAP_OVERLAP_EPSILON);
 
-            if (overlapping.length > 0) {
-                module.setPosition(startPosition.x, startPosition.y, startPosition.z);
+            // Filter out the module we are snapping TO. It is expected to touch/overlap.
+            const realOverlaps = overlapping.filter(
+                (m) => m.instanceId !== candidate.target.module.instanceId
+            );
+
+            if (realOverlaps.length > 0) {
                 continue;
             }
 
-            if (commit && candidate.distance <= SNAP_COMMIT_DISTANCE) {
-                module.setPosition(
-                    snapPosition.x,
-                    snapPosition.y,
-                    snapPosition.z
+            if (!!options.commit) {
+                const connected = this.nodeManager.markOccupied(
+                    candidate.source,
+                    candidate.target
                 );
 
-                if (this.getOverlappingModules(module, SNAP_OVERLAP_EPSILON).length > 0) {
-                    module.setPosition(startPosition.x, startPosition.y, startPosition.z);
-                    continue;
+                if (connected) {
+                    return { snapped: true, magnetActive: true };
                 }
 
-                this.nodeManager.markOccupied(candidate.source, candidate.target);
+                // If connection failed (e.g. target occupied), we still accept the visual snap.
+                return { snapped: true, magnetActive: true };
             }
 
-            return;
+            return { snapped: false, magnetActive: true };
         }
 
         module.setPosition(startPosition.x, startPosition.y, startPosition.z);
+        return { snapped: false, magnetActive: false };
     };
 
     calculateBoundingBox = (module: ModuleInstance): Bounds3 | null => {

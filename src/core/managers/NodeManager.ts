@@ -8,6 +8,22 @@ export class NodeManager {
         this.composition = composition;
     }
 
+    getAllModules() {
+        return Array.from(this.composition.modules.values());
+    }
+
+    getAllNodes(): NodeInstance[] {
+        const nodes: NodeInstance[] = [];
+
+        this.composition.modules.forEach((module) => {
+            module.nodes.forEach((node) => {
+                nodes.push(node);
+            });
+        });
+
+        return nodes;
+    }
+
     getAllFreeNodes(): NodeInstance[] {
         const nodes: NodeInstance[] = [];
 
@@ -66,8 +82,9 @@ export class NodeManager {
         return true;
     }
 
-    disjointModule(moduleId: string): number {
+    disjointModule(moduleId: string): Set<string> {
         const removed = this.composition.graph.removeConnectionsForModule(moduleId);
+        const disconnectedModuleIds = new Set<string>();
 
         removed.forEach((connection) => {
             const fromNode = this.findNode(
@@ -81,9 +98,16 @@ export class NodeManager {
 
             if (fromNode) fromNode.occupied = false;
             if (toNode) toNode.occupied = false;
+
+            if (connection.fromModuleId !== moduleId) {
+                disconnectedModuleIds.add(connection.fromModuleId);
+            }
+            if (connection.toModuleId !== moduleId) {
+                disconnectedModuleIds.add(connection.toModuleId);
+            }
         });
 
-        return removed.length;
+        return disconnectedModuleIds;
     }
 
     private findNode(moduleId: string, nodeId: string): NodeInstance | undefined {
