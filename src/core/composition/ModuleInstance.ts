@@ -14,6 +14,7 @@ export class ModuleInstance {
     private nodesRegisteredFromScene = false;
     localBounds: Bounds3 | null = null;
     worldBounds: Bounds3 | null = null;
+    transformVersion = 0;
 
     transform: Transform;
 
@@ -36,6 +37,7 @@ export class ModuleInstance {
                 instanceId: false,
                 definition: false,
                 worldBounds: false,
+                transformVersion: false,
             },
             { autoBind: true }
         );
@@ -65,6 +67,7 @@ export class ModuleInstance {
         position.x = x;
         position.y = y;
         position.z = z;
+        this.transformVersion += 1;
         this.updateWorldBounds();
     }
 
@@ -78,6 +81,7 @@ export class ModuleInstance {
         rotation.x = x;
         rotation.y = y;
         rotation.z = z;
+        this.transformVersion += 1;
         this.updateWorldBounds();
     }
 

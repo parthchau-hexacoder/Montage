@@ -3,6 +3,7 @@ import { ModuleInstance } from "../composition/ModuleInstance";
 import type { Bounds3 } from "../composition/types";
 import {
     calculateModuleBoundingBox,
+    hasBlockingOverlap as detectBlockingOverlap,
     findOverlappingModules,
 } from "../utils/OverlapDetector";
 
@@ -23,7 +24,7 @@ export class ModuleOverlapManager {
     ): ModuleInstance[] {
         return findOverlappingModules(
             module,
-            Array.from(this.composition.modules.values()),
+            this.composition.modules.values(),
             epsilon
         );
     }
@@ -32,7 +33,20 @@ export class ModuleOverlapManager {
         module: ModuleInstance,
         epsilon = 0
     ): boolean {
-        return this.getOverlappingModules(module, epsilon).length > 0;
+        return detectBlockingOverlap(module, this.composition.modules.values(), epsilon);
+    }
+
+    hasBlockingOverlap(
+        module: ModuleInstance,
+        epsilon = 0,
+        ignoreModuleId?: string
+    ): boolean {
+        return detectBlockingOverlap(
+            module,
+            this.composition.modules.values(),
+            epsilon,
+            ignoreModuleId
+        );
     }
     resolveModuleOverlapByOffset(module: ModuleInstance) {
         const start = { ...module.transform.position };

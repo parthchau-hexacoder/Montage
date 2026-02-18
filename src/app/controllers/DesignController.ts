@@ -20,6 +20,11 @@ type SnapAttemptResult = {
     magnetActive: boolean;
 };
 
+type MoveModuleGroupResult = {
+    moved: boolean;
+    disconnectedIds: Set<string> | null;
+};
+
 export class DesignController {
     composition: BuildingComposition;
     moduleManager: ModuleManager;
@@ -130,12 +135,12 @@ export class DesignController {
         targetX: number,
         targetY: number,
         targetZ: number
-    ): Set<string> | null => {
+    ): MoveModuleGroupResult => {
         const dx = targetX - module.transform.position.x;
         const dy = targetY - module.transform.position.y;
         const dz = targetZ - module.transform.position.z;
         if (dx === 0 && dy === 0 && dz === 0) {
-            return null;
+            return { moved: false, disconnectedIds: null };
         }
         const activeConnections =
             this.composition.graph.getConnectionsForModule(module.instanceId);
@@ -143,7 +148,7 @@ export class DesignController {
             const pullDistanceSq = dx * dx + dy * dy + dz * dz;
 
             if (pullDistanceSq < DRAG_DETACH_DISTANCE * DRAG_DETACH_DISTANCE) {
-                return null;
+                return { moved: false, disconnectedIds: null };
             }
 
             const disconnected = this.nodeManager.disjointModule(module.instanceId);
@@ -154,7 +159,7 @@ export class DesignController {
                 module.transform.position.z + dz
             );
 
-            return disconnected;
+            return { moved: true, disconnectedIds: disconnected };
         }
 
         module.setPosition(
@@ -163,7 +168,7 @@ export class DesignController {
             module.transform.position.z + dz
         );
 
-        return null;
+        return { moved: true, disconnectedIds: null };
     };
 
     rotateModuleQuarter = (module: ModuleInstance, direction: "cw" | "ccw") => {
@@ -222,23 +227,20 @@ export class DesignController {
 
         const startPosition = { ...module.transform.position };
         for (const candidate of candidates) {
-            module.setPosition(startPosition.x, startPosition.y, startPosition.z);
-
             const snapPosition = this.snapManager.computeSnapTransform(
-                module,
+                startPosition,
                 candidate.sourceWorldPosition,
                 candidate.targetWorldPosition
             );
             module.setPosition(snapPosition.x, snapPosition.y, snapPosition.z);
 
-            const overlapping = this.getOverlappingModules(module, SNAP_OVERLAP_EPSILON);
-
-            // Filter out the module we are snapping TO. It is expected to touch/overlap.
-            const realOverlaps = overlapping.filter(
-                (m) => m.instanceId !== candidate.target.module.instanceId
+            const blockingOverlap = this.moduleManager.hasBlockingOverlap(
+                module,
+                SNAP_OVERLAP_EPSILON,
+                candidate.target.module.instanceId
             );
 
-            if (realOverlaps.length > 0) {
+            if (blockingOverlap) {
                 continue;
             }
 

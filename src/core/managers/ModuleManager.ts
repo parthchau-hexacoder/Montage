@@ -75,6 +75,14 @@ export class ModuleManager {
         return this.overlapManager.hasOverlappedWithOtherModule(module, epsilon);
     }
 
+    hasBlockingOverlap(
+        module: ModuleInstance,
+        epsilon = 0,
+        ignoreModuleId?: string
+    ): boolean {
+        return this.overlapManager.hasBlockingOverlap(module, epsilon, ignoreModuleId);
+    }
+
     private attachModule(
         instance: ModuleInstance,
         options: { enableOverlapResolution: boolean }

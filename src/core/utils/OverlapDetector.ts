@@ -24,7 +24,7 @@ export function doBoundingBoxesOverlap(
 
 export function findOverlappingModules(
     module: ModuleInstance,
-    candidates: ModuleInstance[],
+    candidates: Iterable<ModuleInstance>,
     epsilon = 0
 ): ModuleInstance[] {
     const moduleBounds = calculateModuleBoundingBox(module);
@@ -46,4 +46,30 @@ export function findOverlappingModules(
     }
 
     return overlapping;
+}
+
+export function hasBlockingOverlap(
+    module: ModuleInstance,
+    candidates: Iterable<ModuleInstance>,
+    epsilon = 0,
+    ignoreModuleId?: string
+): boolean {
+    const moduleBounds = calculateModuleBoundingBox(module);
+    if (!moduleBounds) {
+        return false;
+    }
+
+    for (const candidate of candidates) {
+        if (candidate.instanceId === module.instanceId) continue;
+        if (ignoreModuleId && candidate.instanceId === ignoreModuleId) continue;
+
+        const candidateBounds = calculateModuleBoundingBox(candidate);
+        if (!candidateBounds) continue;
+
+        if (doBoundingBoxesOverlap(moduleBounds, candidateBounds, epsilon)) {
+            return true;
+        }
+    }
+
+    return false;
 }

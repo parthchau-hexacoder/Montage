@@ -14,7 +14,7 @@ type WorldPoint = {
 export type SnapTarget = {
     source: NodeInstance;
     target: NodeInstance;
-    distance: number;
+    distanceSq: number;
     sourceWorldPosition: WorldPoint;
     targetWorldPosition: WorldPoint;
 };
@@ -39,7 +39,17 @@ export class SnapManager {
     ): SnapTarget[] {
         const candidates: Array<SnapTarget> = [];
         const movingBounds = movingModule.worldBounds;
-        const allModules = this.nodeManager.getAllModules(); 
+        const allModules = this.nodeManager.getAllModules();
+        const sourceNodes = movingModule.nodes.filter((node) => !node.occupied);
+
+        if (sourceNodes.length === 0) {
+            return candidates;
+        }
+
+        const sourceNodesWithPosition = sourceNodes.map((node) => ({
+            node,
+            worldPosition: node.worldPosition,
+        }));
 
         for (const targetModule of allModules) {
             if (targetModule === movingModule) continue;
@@ -64,39 +74,48 @@ export class SnapManager {
                 }
             }
 
-            for (const sourceNode of movingModule.nodes) {
-                if (sourceNode.occupied) continue;
+            const targetNodesWithPosition = targetModule.nodes
+                .filter((node) => !node.occupied)
+                .map((node) => ({
+                    node,
+                    worldPosition: node.worldPosition,
+                }));
 
-                const sourceWorldPosition = sourceNode.worldPosition;
+            if (targetNodesWithPosition.length === 0) {
+                continue;
+            }
 
-                for (const targetNode of targetModule.nodes) {
-                    const targetWorldPosition = targetNode.worldPosition;
-                    const dx = targetWorldPosition.x - sourceWorldPosition.x;
-                    const dy = targetWorldPosition.y - sourceWorldPosition.y;
-                    const dz = targetWorldPosition.z - sourceWorldPosition.z;
+            for (const source of sourceNodesWithPosition) {
+                for (const target of targetNodesWithPosition) {
+                    if (!source.node.isCompatibleWith(target.node)) continue;
+
+                    const dx = target.worldPosition.x - source.worldPosition.x;
+                    const dy = target.worldPosition.y - source.worldPosition.y;
+                    const dz = target.worldPosition.z - source.worldPosition.z;
                     const distanceSq = dx * dx + dy * dy + dz * dz;
 
-                    if (distanceSq > SNAP_THRESHOLD_SQ) {
-                        continue;
-                    }
+                    if (distanceSq > SNAP_THRESHOLD_SQ) continue;
 
                     candidates.push({
-                        source: sourceNode,
-                        target: targetNode,
-                        distance: Math.sqrt(distanceSq),
-                        sourceWorldPosition,
-                        targetWorldPosition,
+                        source: source.node,
+                        target: target.node,
+                        distanceSq,
+                        sourceWorldPosition: source.worldPosition,
+                        targetWorldPosition: target.worldPosition,
                     });
                 }
             }
         }
 
-        candidates.sort((a, b) => a.distance - b.distance);
+        if (candidates.length > 1) {
+            candidates.sort((a, b) => a.distanceSq - b.distanceSq);
+        }
+
         return candidates;
     }
 
     computeSnapTransform(
-        movingModule: ModuleInstance,
+        basePosition: WorldPoint,
         sourceWorldPosition: WorldPoint,
         targetWorldPosition: WorldPoint
     ) {
@@ -105,9 +124,9 @@ export class SnapManager {
         const dz = targetWorldPosition.z - sourceWorldPosition.z;
 
         return {
-            x: movingModule.transform.position.x + dx,
-            y: movingModule.transform.position.y + dy,
-            z: movingModule.transform.position.z + dz,
+            x: basePosition.x + dx,
+            y: basePosition.y + dy,
+            z: basePosition.z + dz,
         };
     }
 

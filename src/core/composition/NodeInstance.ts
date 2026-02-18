@@ -8,15 +8,25 @@ export class NodeInstance {
     readonly module: ModuleInstance;
 
     occupied: boolean = false;
+    private worldPositionCache: Vec3;
+    private worldPositionCacheVersion = -1;
 
     constructor(def: NodeDefinition, module: ModuleInstance) {
         this.definition = def;
         this.module = module;
+        this.worldPositionCache = { x: 0, y: 0, z: 0 };
 
-        makeAutoObservable(this);
+        makeAutoObservable(this, {
+            definition: false,
+            module: false,
+        });
     }
 
     get worldPosition(): Vec3 {
+        if (this.worldPositionCacheVersion === this.module.transformVersion) {
+            return this.worldPositionCache;
+        }
+
         const { position } = this.module.transform;
         const { rotation } = this.module.transform;
         _tmpLocalPosition.set(
@@ -28,11 +38,12 @@ export class NodeInstance {
         _tmpModuleQuaternion.setFromEuler(_tmpRotationEuler);
         _tmpLocalPosition.applyQuaternion(_tmpModuleQuaternion);
 
-        return {
-            x: position.x + _tmpLocalPosition.x,
-            y: position.y + _tmpLocalPosition.y,
-            z: position.z + _tmpLocalPosition.z,
-        };
+        this.worldPositionCache.x = position.x + _tmpLocalPosition.x;
+        this.worldPositionCache.y = position.y + _tmpLocalPosition.y;
+        this.worldPositionCache.z = position.z + _tmpLocalPosition.z;
+        this.worldPositionCacheVersion = this.module.transformVersion;
+
+        return this.worldPositionCache;
     }
 
     get worldRotation(): Vec3 {

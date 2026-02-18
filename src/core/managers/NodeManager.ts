@@ -1,5 +1,6 @@
 import { BuildingComposition } from "../composition/BuildingComposition";
 import { NodeInstance } from "../composition/NodeInstance";
+import { ModuleInstance } from "../composition/ModuleInstance";
 
 export class NodeManager {
     private composition: BuildingComposition;
@@ -8,8 +9,8 @@ export class NodeManager {
         this.composition = composition;
     }
 
-    getAllModules() {
-        return Array.from(this.composition.modules.values());
+    getAllModules(): IterableIterator<ModuleInstance> {
+        return this.composition.modules.values();
     }
 
     getAllNodes(): NodeInstance[] {

@@ -48,7 +48,6 @@ export function useModuleGestures({
   const dragRafRef = useRef<number | null>(null);
   const pendingRotationPreviewRef = useRef<number | null>(null);
   const rotationRafRef = useRef<number | null>(null);
-  const snapAlertShownRef = useRef(false);
 
   const excludedSnapTargetsRef = useRef<Set<string>>(new Set());
 
@@ -57,14 +56,14 @@ export function useModuleGestures({
       const pending = pendingDragTargetRef.current;
       if (!pending) return;
 
-      const disconnectedIds = moveModuleGroup(module, pending.x, pending.y, pending.z);
+      const moveResult = moveModuleGroup(module, pending.x, pending.y, pending.z);
 
-      if (disconnectedIds !== null) {
+      if (moveResult.disconnectedIds !== null) {
         detachedDuringDragRef.current = true;
       }
 
-      if (disconnectedIds) {
-        disconnectedIds.forEach(id => excludedSnapTargetsRef.current.add(id));
+      if (moveResult.disconnectedIds) {
+        moveResult.disconnectedIds.forEach(id => excludedSnapTargetsRef.current.add(id));
       }
 
       if (
@@ -75,18 +74,14 @@ export function useModuleGestures({
         return;
       }
 
+      if (!moveResult.moved && !commit) {
+        return;
+      }
+
       const snapResult = trySnap(module, {
         commit,
         excludeModuleIds: excludedSnapTargetsRef.current
       });
-
-      if (
-        (snapResult.magnetActive || snapResult.snapped) &&
-        !snapAlertShownRef.current
-      ) {
-        snapAlertShownRef.current = true;
-        window.alert("Snapping is happening.");
-      }
 
       if (
         !commit &&
@@ -104,7 +99,6 @@ export function useModuleGestures({
         wasConnectedAtDragStartRef.current = false;
         detachedDuringDragRef.current = false;
         excludedSnapTargetsRef.current.clear();
-        snapAlertShownRef.current = false;
       }
     },
     [module, moveModuleGroup, selectModule, trySnap]
@@ -136,7 +130,6 @@ export function useModuleGestures({
         isDragTemporarilyDisabledRef.current = false;
         wasConnectedAtDragStartRef.current = !canRotateModule(module);
         detachedDuringDragRef.current = false;
-        snapAlertShownRef.current = false;
         onDragStateChange?.(true);
         beginInteraction();
       }
@@ -274,7 +267,6 @@ export function useModuleGestures({
       wasConnectedAtDragStartRef.current = false;
       detachedDuringDragRef.current = false;
       excludedSnapTargetsRef.current.clear();
-      snapAlertShownRef.current = false;
     };
   }, []);
 
