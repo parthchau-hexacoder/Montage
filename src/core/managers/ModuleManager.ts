@@ -29,8 +29,15 @@ export class ModuleManager {
         if (!def) throw new Error("Module definition not found");
 
         const instance = new ModuleInstance(def);
-        this.attachModule(instance, { enableOverlapResolution: true });
+        return this.addModuleInstance(instance, { enableOverlapResolution: true });
+    }
 
+    addModuleInstance(
+        instance: ModuleInstance,
+        options: { enableOverlapResolution?: boolean } = {}
+    ) {
+        const enableOverlapResolution = options.enableOverlapResolution ?? true;
+        this.attachModule(instance, { enableOverlapResolution });
         return instance;
     }
 
@@ -40,7 +47,7 @@ export class ModuleManager {
 
         modules.forEach((module) => {
             // History restore should preserve exact snapshot transforms.
-            this.attachModule(module, { enableOverlapResolution: false });
+            this.addModuleInstance(module, { enableOverlapResolution: false });
         });
     }
 

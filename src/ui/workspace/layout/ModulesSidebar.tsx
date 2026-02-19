@@ -1,8 +1,9 @@
 import { observer } from "mobx-react-lite";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { useDesign } from "../../../app/providers/DesignProvider";
 import { useWorkspaceUi } from "../../../app/providers/WorkspaceUiProvider";
 import type { BackendTemplate } from "../../../app/models/backendTemplate";
+import { setSidebarDragPayload } from "./sidebar/sidebarDragPayload";
 
 type Props = {
   catalog?: "modules" | "templates";
@@ -112,6 +113,26 @@ export const ModulesSidebar = observer(({ catalog = "modules" }: Props) => {
     });
   }, [activeCategory, availableTemplates, isTemplatesCatalog, searchValue]);
 
+  const handleModuleDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    moduleId: string
+  ) => {
+    setSidebarDragPayload(event.dataTransfer, {
+      kind: "module",
+      moduleId,
+    });
+  };
+
+  const handleTemplateDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    templateId: string
+  ) => {
+    setSidebarDragPayload(event.dataTransfer, {
+      kind: "template",
+      templateId,
+    });
+  };
+
   return (
     <aside className="hidden h-full w-[330px] min-w-[330px] max-w-[330px] shrink-0 flex-col overflow-hidden border-r border-gray-300 bg-[#f5f6fa] px-4 py-4 lg:flex">
       <div className="shrink-0">
@@ -216,7 +237,11 @@ export const ModulesSidebar = observer(({ catalog = "modules" }: Props) => {
                   <button
                     key={template.id}
                     type="button"
+                    draggable
                     onClick={() => loadTemplateIntoCanvas(String(template.id))}
+                    onDragStart={(event) =>
+                      handleTemplateDragStart(event, String(template.id))
+                    }
                     className="w-full rounded-xl border border-[#d6d8e2] bg-[#fbfbfd] p-3 text-left transition hover:border-[#b8bfce]"
                   >
                     <TemplatePreview template={template} />
@@ -235,7 +260,11 @@ export const ModulesSidebar = observer(({ catalog = "modules" }: Props) => {
                   <button
                     key={definition.id}
                     type="button"
+                    draggable
                     onClick={() => addModule(definition.id)}
+                    onDragStart={(event) =>
+                      handleModuleDragStart(event, definition.id)
+                    }
                     className="w-full rounded-xl border border-[#d6d8e2] bg-[#fbfbfd] p-3 text-left transition hover:border-[#b8bfce]"
                   >
                     {definition.previewImage ? (
@@ -282,7 +311,11 @@ export const ModulesSidebar = observer(({ catalog = "modules" }: Props) => {
                   <button
                     key={template.id}
                     type="button"
+                    draggable
                     onClick={() => loadTemplateIntoCanvas(String(template.id))}
+                    onDragStart={(event) =>
+                      handleTemplateDragStart(event, String(template.id))
+                    }
                     className="flex w-full items-center gap-3 rounded-lg border border-[#d6d8e2] bg-white px-3 py-2 text-left transition hover:border-[#b8bfce]"
                   >
                     <div className="flex h-8 w-8 items-center justify-center rounded bg-[#111827] text-xs font-bold text-white">
@@ -302,7 +335,11 @@ export const ModulesSidebar = observer(({ catalog = "modules" }: Props) => {
                   <button
                     key={definition.id}
                     type="button"
+                    draggable
                     onClick={() => addModule(definition.id)}
+                    onDragStart={(event) =>
+                      handleModuleDragStart(event, definition.id)
+                    }
                     className="flex w-full items-center gap-3 rounded-lg border border-[#d6d8e2] bg-white px-3 py-2 text-left transition hover:border-[#b8bfce]"
                   >
                     <div className="flex h-8 w-8 items-center justify-center rounded bg-[#111827] text-xs font-bold text-white">

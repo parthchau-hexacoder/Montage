@@ -30,6 +30,16 @@ type MoveModuleGroupResult = {
     disconnectedIds: Set<string> | null;
 };
 
+type TemplateAnchorPosition = {
+    x: number;
+    y: number;
+    z: number;
+};
+
+type TemplateInstantiationOptions = {
+    anchorPosition?: TemplateAnchorPosition;
+};
+
 export class DesignController {
     composition: BuildingComposition;
     moduleManager: ModuleManager;
@@ -177,6 +187,55 @@ export class DesignController {
             const module = this.moduleManager.createModule(typeId);
             this.composition.setSelectedModule(module.instanceId);
             return module;
+        });
+    };
+
+    addModuleAt = (
+        typeId: string,
+        position: { x: number; y?: number; z: number }
+    ) => {
+        return this.history.recordChange(() => {
+            const module = this.moduleManager.createModule(typeId);
+            module.setPosition(
+                position.x,
+                position.y ?? module.transform.position.y,
+                position.z
+            );
+            this.composition.setSelectedModule(module.instanceId);
+            return module;
+        });
+    };
+
+    addTemplateAt = (
+        templateId: string,
+        position: { x: number; y?: number; z: number }
+    ) => {
+        const template = this.templates.find(
+            (candidate) => String(candidate.id) === String(templateId)
+        );
+        if (!template) return;
+
+        const templateModules = this.createTemplateModuleInstances(template, {
+            anchorPosition: {
+                x: position.x,
+                y: position.y ?? 0,
+                z: position.z,
+            },
+        });
+
+        if (templateModules.length === 0) {
+            return;
+        }
+
+        this.history.recordChange(() => {
+            templateModules.forEach((module) => {
+                this.moduleManager.addModuleInstance(module, {
+                    enableOverlapResolution: false,
+                });
+            });
+
+            const lastModule = templateModules.at(-1) ?? null;
+            this.composition.setSelectedModule(lastModule?.instanceId ?? null);
         });
     };
 
@@ -392,7 +451,10 @@ export class DesignController {
         });
     }
 
-    private createTemplateModuleInstances(template: BackendTemplate) {
+    private createTemplateModuleInstances(
+        template: BackendTemplate,
+        options: TemplateInstantiationOptions = {}
+    ) {
         const modulesData = template.designData?.modulesData;
         if (!Array.isArray(modulesData) || modulesData.length === 0) {
             return [];
@@ -404,6 +466,10 @@ export class DesignController {
                 this.buildModuleInstanceFromTemplateEntry(moduleData, index, discoveredDefinitions)
             )
             .filter((module): module is ModuleInstance => module !== null);
+
+        if (modules.length > 0 && options.anchorPosition) {
+            this.offsetTemplateModulesToAnchor(modules, options.anchorPosition);
+        }
 
         if (discoveredDefinitions.length > 0) {
             this.mergeTemplateModuleDefinitions(discoveredDefinitions);
@@ -450,6 +516,38 @@ export class DesignController {
 
         this.templateModuleDefinitions = Array.from(merged.values());
         this.registerCatalogDefinitions();
+    }
+
+    private offsetTemplateModulesToAnchor(
+        modules: ModuleInstance[],
+        anchorPosition: TemplateAnchorPosition
+    ) {
+        if (modules.length === 0) {
+            return;
+        }
+
+        const centroid = modules.reduce(
+            (sum, module) => {
+                sum.x += module.transform.position.x;
+                sum.y += module.transform.position.y;
+                sum.z += module.transform.position.z;
+                return sum;
+            },
+            { x: 0, y: 0, z: 0 }
+        );
+
+        const factor = 1 / modules.length;
+        const offsetX = anchorPosition.x - centroid.x * factor;
+        const offsetY = anchorPosition.y - centroid.y * factor;
+        const offsetZ = anchorPosition.z - centroid.z * factor;
+
+        modules.forEach((module) => {
+            module.setPosition(
+                module.transform.position.x + offsetX,
+                module.transform.position.y + offsetY,
+                module.transform.position.z + offsetZ
+            );
+        });
     }
 }
 
