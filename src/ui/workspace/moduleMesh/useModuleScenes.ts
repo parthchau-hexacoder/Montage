@@ -7,9 +7,10 @@ type Params = {
   scene: THREE.Object3D;
   module: ModuleInstance;
   interactive: boolean;
+  isConnected: boolean;
 };
 
-export function useModuleScenes({ scene, module, interactive }: Params) {
+export function useModuleScenes({ scene, module, interactive, isConnected }: Params) {
   const freeNodeIds = useMemo(
     () =>
       new Set(
@@ -31,8 +32,9 @@ export function useModuleScenes({ scene, module, interactive }: Params) {
     applyPlan2DStyle(moduleScene, {
       enabled: interactive,
       freeNodeIds,
+      isModuleConnected: isConnected,
     });
-  }, [moduleScene, interactive, freeNodeIds]);
+  }, [moduleScene, interactive, freeNodeIds, isConnected]);
 
   useEffect(() => {
     if (!interactive) return;
@@ -40,8 +42,9 @@ export function useModuleScenes({ scene, module, interactive }: Params) {
     applyPlan2DStyle(ghostScene, {
       enabled: interactive,
       freeNodeIds,
+      isModuleConnected: isConnected,
     });
-  }, [ghostScene, interactive, freeNodeIds]);
+  }, [ghostScene, interactive, freeNodeIds, isConnected]);
 
   return { moduleScene, ghostScene };
 }

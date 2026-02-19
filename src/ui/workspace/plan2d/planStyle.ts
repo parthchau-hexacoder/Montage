@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-const PLAN_FILL = "#ffffff";
+const PLAN_FILL_CONNECTED = "#ffffff";
+const PLAN_FILL_DISCONNECTED = "#d1d5db";
 const PLAN_OUTLINE = "#111111";
 const PLAN_NODE = "#56cfe1";
 const PLAN_DOOR = "#000000";
@@ -8,6 +9,7 @@ const PLAN_DOOR = "#000000";
 type NodeState = {
   freeNodeIds: Set<string>;
   enabled: boolean;
+  isModuleConnected: boolean;
 };
 
 export function applyPlan2DStyle(scene: THREE.Object3D, state: NodeState) {
@@ -26,7 +28,7 @@ export function applyPlan2DStyle(scene: THREE.Object3D, state: NodeState) {
     mesh.visible = true;
     const materials = ensureLocalMaterials(mesh);
     const isFreeNode = markerId ? state.freeNodeIds.has(markerId) : false;
-    const fillColor = getFillColor(kind, isFreeNode);
+    const fillColor = getFillColor(kind, isFreeNode, state.isModuleConnected);
 
     materials.forEach((material) => {
       setFlatPlanMaterial(material, fillColor);
@@ -61,10 +63,14 @@ function classifyPlanMesh(
   return "default";
 }
 
-function getFillColor(kind: PlanMeshKind, isFreeNode: boolean): string {
+function getFillColor(
+  kind: PlanMeshKind,
+  isFreeNode: boolean,
+  isModuleConnected: boolean
+): string {
   if (kind === "door") return PLAN_DOOR;
   if (kind === "node" && isFreeNode) return PLAN_NODE;
-  return PLAN_FILL;
+  return isModuleConnected ? PLAN_FILL_CONNECTED : PLAN_FILL_DISCONNECTED;
 }
 
 function hasNameInHierarchy(object: THREE.Object3D, pattern: RegExp): boolean {
@@ -183,7 +189,7 @@ function createPlanFillMaterial(source: THREE.Material): THREE.MeshBasicMaterial
   };
 
   return new THREE.MeshBasicMaterial({
-    color: PLAN_FILL,
+    color: PLAN_FILL_CONNECTED,
     side: mat.side,
     transparent: mat.transparent,
     opacity: mat.opacity,

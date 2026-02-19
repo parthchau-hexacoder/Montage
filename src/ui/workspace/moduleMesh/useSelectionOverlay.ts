@@ -41,7 +41,7 @@ export function useSelectionOverlay(
     geometry.setAttribute("position", new THREE.BufferAttribute(linePoints, 3));
 
     return { corners, geometry };
-  }, [module, moduleScene]);
+  }, [module, moduleScene, module.localBounds]);
 
   useEffect(() => {
     return () => {

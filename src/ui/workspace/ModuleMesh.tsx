@@ -17,10 +17,13 @@ export const ModuleMesh = observer(({ module, interactive, onDragStateChange }: 
   const { scene } = useGLTF(module.definition.glbPath);
   const { composition, selectModule } = useDesign();
   const isSelected = composition.selectedModuleId === module.instanceId;
+  const isConnected =
+    composition.graph.getConnectionsForModule(module.instanceId).length > 0;
   const { moduleScene, ghostScene } = useModuleScenes({
     scene,
     module,
     interactive,
+    isConnected,
   });
   const selectionOverlay = useSelectionOverlay(module, moduleScene);
   const { canRotate, rotationPreviewY, dragBind, rotateHandlers, markRotationPointerDown } =

@@ -33,10 +33,12 @@ export function useModuleGestures({
     trySnap,
     moveModuleGroup,
     canRotateModule,
+    isModuleTransformLocked,
     selectModule,
     beginInteraction,
     endInteraction,
   } = useDesign();
+  const isTransformLocked = isModuleTransformLocked(module.instanceId);
   const canRotate = canRotateModule(module);
   const [rotationPreviewY, setRotationPreviewY] = useState<number | null>(null);
   const [isRotatingHandle, setIsRotatingHandle] = useState(false);
@@ -124,7 +126,7 @@ export function useModuleGestures({
 
   const dragBind = useDrag(
     ({ movement: [mx, my], first, last, memo }) => {
-      if (!interactive || isRotatingHandleRef.current) return memo;
+      if (!interactive || isRotatingHandleRef.current || isTransformLocked) return memo;
 
       if (first) {
         isDragTemporarilyDisabledRef.current = false;
@@ -180,12 +182,12 @@ export function useModuleGestures({
 
       return start;
     },
-    { enabled: interactive && !isRotatingHandle }
+    { enabled: interactive && !isRotatingHandle && !isTransformLocked }
   );
 
   const rotateBind = useDrag(
     ({ xy: [pointerX, pointerY], first, last, memo }) => {
-      if (!interactive || !canRotate) return memo;
+      if (!interactive || !canRotate || isTransformLocked) return memo;
 
       const centerWorld = new THREE.Vector3(
         module.transform.position.x,

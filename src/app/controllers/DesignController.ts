@@ -256,6 +256,10 @@ export class DesignController {
         targetY: number,
         targetZ: number
     ): MoveModuleGroupResult => {
+        if (this.isModuleTransformLocked(module.instanceId)) {
+            return { moved: false, disconnectedIds: null };
+        }
+
         const dx = targetX - module.transform.position.x;
         const dy = targetY - module.transform.position.y;
         const dz = targetZ - module.transform.position.z;
@@ -309,7 +313,20 @@ export class DesignController {
     };
 
     canRotateModule = (module: ModuleInstance): boolean => {
+        if (this.isModuleTransformLocked(module.instanceId)) {
+            return false;
+        }
+
         return this.composition.graph.getConnectionsForModule(module.instanceId).length === 0;
+    };
+
+    isModuleTransformLocked = (moduleId: string | null) => {
+        if (!moduleId) {
+            return false;
+        }
+
+        const firstLoadedModule = this.composition.modules.values().next().value;
+        return firstLoadedModule?.instanceId === moduleId;
     };
 
     disjointSelectedModule = () => {
